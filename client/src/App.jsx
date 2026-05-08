@@ -13,6 +13,8 @@ import { ConversationPage } from "./pages/ConversationPage.jsx";
 import { ComparePage } from "./pages/ComparePage.jsx";
 import { FavoritesPage } from "./pages/FavoritesPage.jsx";
 import { MessagesInboxPage } from "./pages/MessagesInboxPage.jsx";
+import { ProfilePage } from "./pages/ProfilePage.jsx";
+import { OwnerProfilePage } from "./pages/OwnerProfilePage.jsx";
 
 const AdminAnalyticsPage = lazy(() =>
   import("./pages/AdminAnalyticsPage.jsx").then((module) => ({ default: module.AdminAnalyticsPage }))
@@ -33,12 +35,14 @@ export default function App() {
         <Route path="/" element={<MarketplacePage />} />
         <Route path="/listings/:id" element={<ListingDetailsPage />} />
         <Route path="/compare" element={<ComparePage />} />
+        <Route path="/owners/:id" element={<OwnerProfilePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/messages" element={<MessagesInboxPage />} />
           <Route path="/messages/:id" element={<ConversationPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/my-listings" element={<MyListingsPage />} />
           <Route path="/listings/new" element={<ListingFormPage mode="create" />} />
           <Route path="/listings/:id/edit" element={<ListingFormPage mode="edit" />} />

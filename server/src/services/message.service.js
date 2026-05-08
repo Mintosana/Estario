@@ -79,6 +79,36 @@ async function findConversationOrThrow(conversationId, user) {
   return conversation;
 }
 
+async function markConversationMessagesRead(conversationId, userId) {
+  await prisma.message.updateMany({
+    where: {
+      conversationId,
+      readAt: null,
+      NOT: {
+        senderId: userId
+      }
+    },
+    data: {
+      readAt: new Date()
+    }
+  });
+}
+
+function unreadWhereForUser(userId) {
+  return {
+    readAt: null,
+    NOT: {
+      senderId: userId
+    },
+    conversation: {
+      OR: [
+        { ownerId: userId },
+        { buyerId: userId }
+      ]
+    }
+  };
+}
+
 export async function createMessage(listingId, data, user) {
   const listing = await findListingOwnerOrThrow(listingId);
 
@@ -217,15 +247,48 @@ export async function getConversations(user) {
     }
   });
 
-  return conversations.map((conversation) => ({
-    ...conversation,
-    lastMessage: conversation.messages[0] ?? null,
-    messages: undefined
-  }));
+  const unreadCounts = await prisma.message.groupBy({
+    by: ["conversationId"],
+    where: unreadWhereForUser(user.id),
+    _count: {
+      id: true
+    }
+  });
+  const unreadCountByConversationId = new Map(
+    unreadCounts.map((item) => [item.conversationId, item._count.id])
+  );
+
+  return conversations.map((conversation) => {
+    const unreadCount = unreadCountByConversationId.get(conversation.id) ?? 0;
+
+    return {
+      ...conversation,
+      hasUnread: unreadCount > 0,
+      lastMessage: conversation.messages[0] ?? null,
+      messages: undefined,
+      unreadCount
+    };
+  });
 }
 
 export async function getConversation(conversationId, user) {
+  await markConversationMessagesRead(conversationId, user.id);
   return findConversationOrThrow(conversationId, user);
+}
+
+export async function getUnreadConversationCount(user) {
+  const unreadConversations = await prisma.message.groupBy({
+    by: ["conversationId"],
+    where: unreadWhereForUser(user.id),
+    _count: {
+      id: true
+    }
+  });
+
+  return {
+    totalUnreadMessages: unreadConversations.reduce((total, item) => total + item._count.id, 0),
+    unreadConversations: unreadConversations.length
+  };
 }
 
 export async function addConversationMessage(conversationId, data, user) {

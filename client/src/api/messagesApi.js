@@ -20,6 +20,11 @@ export async function getConversations() {
   return response.data;
 }
 
+export async function getUnreadMessageCount() {
+  const response = await axiosClient.get("/messages/unread-count");
+  return response.data;
+}
+
 export async function getConversation(conversationId) {
   const response = await axiosClient.get(`/messages/conversations/${conversationId}`);
   return response.data;

@@ -39,6 +39,10 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((nextUser) => {
+    setUser(nextUser);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -80,9 +84,10 @@ export function AuthProvider({ children }) {
       logout,
       register,
       token,
+      updateUser,
       user
     }),
-    [isLoading, login, logout, register, token, user]
+    [isLoading, login, logout, register, token, updateUser, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

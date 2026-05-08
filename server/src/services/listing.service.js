@@ -223,11 +223,13 @@ export async function updateListing(id, user, data) {
     throw new AppError("Nu poti modifica acest anunt.", 403);
   }
 
+  const shouldPreserveStatus = user.role === "ADMIN" && listing.ownerId !== user.id;
+
   const updatedListing = await prisma.listing.update({
     where: { id },
     data: {
       ...data,
-      ...(user.role === "ADMIN" ? {} : { status: "PENDING", rejectionReason: null })
+      ...(shouldPreserveStatus ? {} : { status: "PENDING", rejectionReason: null })
     },
     include: publicListingInclude
   });
@@ -300,4 +302,38 @@ export async function removeListingImage(id, imageId, user) {
   });
 
   await removeLocalImageFiles([image]);
+}
+
+export async function reorderListingImages(id, user, imageIds) {
+  const listing = await findListingOrThrow(id);
+
+  if (!canManageListing(listing, user)) {
+    throw new AppError("Nu poti ordona imaginile acestui anunt.", 403);
+  }
+
+  const currentImageIds = listing.images.map((image) => image.id);
+  const currentImageIdSet = new Set(currentImageIds);
+  const requestedImageIdSet = new Set(imageIds);
+
+  if (requestedImageIdSet.size !== imageIds.length) {
+    throw new AppError("Lista de imagini contine duplicate.", 400);
+  }
+
+  if (
+    imageIds.length !== currentImageIds.length ||
+    imageIds.some((imageId) => !currentImageIdSet.has(imageId))
+  ) {
+    throw new AppError("Lista de imagini nu corespunde anuntului.", 400);
+  }
+
+  await prisma.$transaction(
+    imageIds.map((imageId, position) =>
+      prisma.listingImage.update({
+        where: { id: imageId },
+        data: { position }
+      })
+    )
+  );
+
+  return getListingById(id, user);
 }

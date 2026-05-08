@@ -83,7 +83,7 @@ export function MessagesInboxPage() {
             const lastMessage = conversation.lastMessage;
 
             return (
-              <article className="inbox-item" key={conversation.id}>
+              <article className={`inbox-item ${conversation.hasUnread ? "inbox-item-unread" : ""}`} key={conversation.id}>
                 <div className="inbox-icon" aria-hidden="true">
                   <Mail size={20} />
                 </div>
@@ -105,6 +105,11 @@ export function MessagesInboxPage() {
                       <div className="inbox-meta">
                         <strong>{lastMessage.sender?.name ?? lastMessage.senderName}</strong>
                         <span>{formatMessageDate(lastMessage.createdAt)}</span>
+                        {conversation.unreadCount > 0 ? (
+                          <span className="unread-pill">
+                            {conversation.unreadCount} {conversation.unreadCount === 1 ? "mesaj necitit" : "mesaje necitite"}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="inbox-message">{lastMessage.message}</p>
                     </>

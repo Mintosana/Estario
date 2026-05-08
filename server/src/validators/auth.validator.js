@@ -35,3 +35,27 @@ export const loginSchema = z.object({
   params: z.object({}).optional(),
   query: z.object({}).optional()
 });
+
+export const updateProfileSchema = z.object({
+  body: z.object({
+    name: z
+      .string({ required_error: "Numele este obligatoriu." })
+      .trim()
+      .min(2, "Numele trebuie sa aiba cel putin 2 caractere.")
+      .max(80, "Numele este prea lung."),
+    phone: z
+      .string()
+      .trim()
+      .max(30, "Numarul de telefon este prea lung.")
+      .optional()
+      .nullable(),
+    bio: z
+      .string()
+      .trim()
+      .max(500, "Descrierea profilului este prea lunga.")
+      .optional()
+      .nullable()
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional()
+});

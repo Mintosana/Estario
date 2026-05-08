@@ -102,6 +102,17 @@ export const listingImageParamsSchema = z.object({
   query: z.object({}).optional()
 });
 
+export const listingImageOrderSchema = z.object({
+  params: listingIdParamsSchema.shape.params,
+  body: z.object({
+    imageIds: z
+      .array(z.string().min(1, "ID-ul imaginii este obligatoriu."))
+      .min(1, "Trimite cel putin o imagine pentru ordonare.")
+      .max(30, "Nu poti ordona mai mult de 30 de imagini odata.")
+  }),
+  query: z.object({}).optional()
+});
+
 export const createListingSchema = z.object({
   body: z.object(listingBodyBase),
   params: z.object({}).optional(),

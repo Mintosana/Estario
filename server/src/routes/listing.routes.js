@@ -9,6 +9,7 @@ import {
   showMyListingAnalytics,
   showListing,
   storeListing,
+  updateListingImageOrder,
   uploadListingImages
 } from "../controllers/listing.controller.js";
 import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.middleware.js";
@@ -20,6 +21,7 @@ import {
   naturalListingSearchSchema,
   listingFiltersSchema,
   listingIdParamsSchema,
+  listingImageOrderSchema,
   listingImageParamsSchema,
   updateListingSchema
 } from "../validators/listing.validator.js";
@@ -64,6 +66,12 @@ router.post(
   validateMiddleware(listingIdParamsSchema),
   uploadImages,
   asyncHandler(uploadListingImages)
+);
+router.patch(
+  "/listings/:id/images/order",
+  authMiddleware,
+  validateMiddleware(listingImageOrderSchema),
+  asyncHandler(updateListingImageOrder)
 );
 router.delete(
   "/listings/:id/images/:imageId",

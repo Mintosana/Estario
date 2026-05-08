@@ -122,6 +122,7 @@ export function ConversationPage() {
                 <div>
                   <strong>{item.sender?.name ?? item.senderName}</strong>
                   <span>{formatMessageDate(item.createdAt)}</span>
+                  {isOwnMessage && item.readAt ? <span>Citit</span> : null}
                 </div>
                 <p>{item.message}</p>
               </article>

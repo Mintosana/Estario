@@ -5,6 +5,7 @@ import {
   listListingMessages,
   replyToConversation,
   showConversation,
+  showUnreadConversationCount,
   storeMessage
 } from "../controllers/message.controller.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
@@ -34,6 +35,11 @@ router.get(
   "/messages/conversations",
   authMiddleware,
   asyncHandler(listConversations)
+);
+router.get(
+  "/messages/unread-count",
+  authMiddleware,
+  asyncHandler(showUnreadConversationCount)
 );
 router.get(
   "/messages/conversations/:id",

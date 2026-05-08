@@ -7,6 +7,7 @@ import {
   getMyListings,
   getPublicListings,
   removeListingImage,
+  reorderListingImages,
   updateListing
 } from "../services/listing.service.js";
 import { interpretListingSearch } from "../services/naturalListingSearch.service.js";
@@ -59,4 +60,13 @@ export async function uploadListingImages(req, res) {
 export async function destroyListingImage(req, res) {
   await removeListingImage(req.validated.params.id, req.validated.params.imageId, req.user);
   res.status(204).send();
+}
+
+export async function updateListingImageOrder(req, res) {
+  const listing = await reorderListingImages(
+    req.validated.params.id,
+    req.user,
+    req.validated.body.imageIds
+  );
+  res.json({ data: listing });
 }

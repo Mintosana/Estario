@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma.js";
 import { AppError } from "../utils/AppError.js";
 import { signToken } from "../utils/jwt.js";
 import { comparePassword, hashPassword } from "../utils/password.js";
+import { createUploadUrl } from "../utils/fileUrl.js";
 import { toPublicUser } from "../utils/publicUser.js";
 
 function createAuthResponse(user) {
@@ -50,5 +51,33 @@ export async function loginUser({ email, password }) {
 }
 
 export function getCurrentUser(user) {
+  return toPublicUser(user);
+}
+
+export async function updateUserProfile(userId, data) {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: data.name,
+      phone: data.phone || null,
+      bio: data.bio || null
+    }
+  });
+
+  return toPublicUser(user);
+}
+
+export async function updateUserAvatar(userId, file) {
+  if (!file) {
+    throw new AppError("Selecteaza o imagine pentru profil.", 400);
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      avatarUrl: createUploadUrl(file.filename)
+    }
+  });
+
   return toPublicUser(user);
 }

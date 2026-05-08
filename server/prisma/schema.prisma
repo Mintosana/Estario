@@ -76,6 +76,9 @@ model User {
   name         String
   email        String     @unique
   passwordHash String
+  avatarUrl    String?
+  phone        String?
+  bio          String?
   role         Role       @default(USER)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -205,6 +208,7 @@ model Message {
   senderName  String
   senderEmail String
   message     String
+  readAt      DateTime?
   createdAt   DateTime @default(now())
   listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -213,6 +217,7 @@ model Message {
   @@index([listingId])
   @@index([conversationId])
   @@index([senderId])
+  @@index([readAt])
   @@map("messages")
 }
 

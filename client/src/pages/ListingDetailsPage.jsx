@@ -2,7 +2,7 @@ import { Bus, CheckCircle2, Heart, Hospital, Mail, MapPin, School, ShoppingBag, 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { approveListing, rejectListing } from "../api/adminApi.js";
-import { getApiErrorMessage, apiOrigin } from "../api/axiosClient.js";
+import { getApiErrorMessage, apiOrigin, resolveApiAssetUrl } from "../api/axiosClient.js";
 import { addFavorite, getFavorites, removeFavorite } from "../api/favoritesApi.js";
 import { getListing } from "../api/listingsApi.js";
 import { createMessage } from "../api/messagesApi.js";
@@ -477,9 +477,15 @@ export function ListingDetailsPage() {
               <p className="owner-notice">Acesta este anuntul tau. Nu poti trimite mesaj propriului anunt.</p>
             ) : (
               <>
-                <div className="sender-profile">
-                  <UserCircle size={22} aria-hidden="true" />
-                  <div>
+                <Link className="sender-profile" to={`/owners/${listing.owner.id}`}>
+                  <div className="sender-avatar">
+                    {listing.owner.avatarUrl ? (
+                      <img src={resolveApiAssetUrl(listing.owner.avatarUrl)} alt="" />
+                    ) : (
+                      <UserCircle size={26} aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="sender-profile-content">
                     {isAuthenticated ? (
                       <>
                         <strong>{listing.owner.name}</strong>
@@ -491,8 +497,10 @@ export function ListingDetailsPage() {
                         <span>Autentifica-te pentru a trimite mesaj.</span>
                       </>
                     )}
+                    {listing.owner.bio ? <p>{listing.owner.bio}</p> : null}
+                    {listing.owner.phone ? <small>{listing.owner.phone}</small> : null}
                   </div>
-                </div>
+                </Link>
                 {isAuthenticated ? (
                   <>
                     <label>

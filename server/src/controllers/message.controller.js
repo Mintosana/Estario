@@ -4,7 +4,8 @@ import {
   getConversation,
   getConversations,
   getInboxMessages,
-  getListingMessages
+  getListingMessages,
+  getUnreadConversationCount
 } from "../services/message.service.js";
 
 export async function storeMessage(req, res) {
@@ -25,6 +26,11 @@ export async function listInboxMessages(req, res) {
 export async function listConversations(req, res) {
   const conversations = await getConversations(req.user);
   res.json({ data: conversations });
+}
+
+export async function showUnreadConversationCount(req, res) {
+  const unreadCount = await getUnreadConversationCount(req.user);
+  res.json({ data: unreadCount });
 }
 
 export async function showConversation(req, res) {

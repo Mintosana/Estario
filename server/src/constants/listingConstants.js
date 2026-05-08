@@ -23,7 +23,11 @@ export const publicListingInclude = {
     select: {
       id: true,
       name: true,
-      email: true
+      email: true,
+      avatarUrl: true,
+      phone: true,
+      bio: true,
+      createdAt: true
     }
   },
   images: {

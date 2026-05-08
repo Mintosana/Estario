@@ -54,6 +54,11 @@ export async function uploadListingImages(id, files) {
   return response.data;
 }
 
+export async function updateListingImageOrder(id, imageIds) {
+  const response = await axiosClient.patch(`/listings/${id}/images/order`, { imageIds });
+  return response.data;
+}
+
 export async function deleteListingImage(id, imageId) {
   await axiosClient.delete(`/listings/${id}/images/${imageId}`);
 }
