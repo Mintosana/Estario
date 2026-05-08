@@ -10,6 +10,11 @@ export async function getRejectedListings() {
   return response.data;
 }
 
+export async function getAdminAnalytics() {
+  const response = await axiosClient.get("/admin/analytics");
+  return response.data;
+}
+
 export async function approveListing(id) {
   const response = await axiosClient.patch(`/admin/listings/${id}/approve`);
   return response.data;

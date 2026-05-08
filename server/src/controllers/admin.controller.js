@@ -1,5 +1,6 @@
 import {
   approveListing,
+  getAdminAnalytics,
   getPendingListings,
   getRejectedListings,
   rejectListing
@@ -13,6 +14,11 @@ export async function listPendingListings(req, res) {
 export async function listRejectedListings(req, res) {
   const listings = await getRejectedListings();
   res.json({ data: listings });
+}
+
+export async function showAdminAnalytics(req, res) {
+  const analytics = await getAdminAnalytics();
+  res.json({ data: analytics });
 }
 
 export async function approveListingAction(req, res) {

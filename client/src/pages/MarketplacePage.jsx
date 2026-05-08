@@ -1,12 +1,18 @@
-import { Bookmark, Search, Trash2 } from "lucide-react";
+import { Bookmark, Search, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage } from "../api/axiosClient.js";
-import { getListings } from "../api/listingsApi.js";
+import { getListings, interpretListingSearch } from "../api/listingsApi.js";
 import { createSavedSearch, deleteSavedSearch, getSavedSearches } from "../api/savedSearchesApi.js";
 import { ListingCard } from "../components/listings/ListingCard.jsx";
 import { MarketplaceMap } from "../components/listings/MarketplaceMap.jsx";
 import { Pagination } from "../components/ui/Pagination.jsx";
-import { propertyTypeLabels, sortLabels, transactionTypeLabels } from "../constants/listingLabels.js";
+import {
+  furnishingLabels,
+  parkingLabels,
+  propertyTypeLabels,
+  sortLabels,
+  transactionTypeLabels
+} from "../constants/listingLabels.js";
 import { countyOptions, romanianLocations } from "../constants/romaniaLocations.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -20,6 +26,10 @@ const initialFilters = {
   minPrice: "",
   maxPrice: "",
   rooms: "",
+  balcony: "",
+  parking: "",
+  furnished: "",
+  hasOwnCentralHeating: "",
   sort: "newest"
 };
 
@@ -35,9 +45,12 @@ export function MarketplacePage() {
   const [listings, setListings] = useState([]);
   const [visibleListingIds, setVisibleListingIds] = useState(null);
   const [savedSearches, setSavedSearches] = useState([]);
+  const [naturalSearchText, setNaturalSearchText] = useState("");
   const [error, setError] = useState("");
+  const [naturalSearchStatus, setNaturalSearchStatus] = useState("");
   const [savedSearchStatus, setSavedSearchStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isNaturalSearchLoading, setIsNaturalSearchLoading] = useState(false);
   const [isSavedSearchLoading, setIsSavedSearchLoading] = useState(false);
 
   const query = useMemo(() => {
@@ -70,11 +83,17 @@ export function MarketplacePage() {
         ? { key: "propertyType", label: `Tip: ${propertyTypeLabels[appliedFilters.propertyType]}` }
         : null,
       appliedFilters.transactionType
-        ? { key: "transactionType", label: `Tranzactie: ${transactionTypeLabels[appliedFilters.transactionType]}` }
+        ? { key: "transactionType", label: `Tip anunt: ${transactionTypeLabels[appliedFilters.transactionType]}` }
         : null,
       appliedFilters.minPrice ? { key: "minPrice", label: `Pret min: ${appliedFilters.minPrice}` } : null,
       appliedFilters.maxPrice ? { key: "maxPrice", label: `Pret max: ${appliedFilters.maxPrice}` } : null,
       appliedFilters.rooms ? { key: "rooms", label: `Camere: ${appliedFilters.rooms}` } : null,
+      appliedFilters.furnished ? { key: "furnished", label: `Mobilare: ${furnishingLabels[appliedFilters.furnished]}` } : null,
+      appliedFilters.parking ? { key: "parking", label: `Parcare: ${parkingLabels[appliedFilters.parking]}` } : null,
+      appliedFilters.balcony ? { key: "balcony", label: `Balcon: ${appliedFilters.balcony === "true" ? "Da" : "Nu"}` } : null,
+      appliedFilters.hasOwnCentralHeating
+        ? { key: "hasOwnCentralHeating", label: `Centrala proprie: ${appliedFilters.hasOwnCentralHeating === "true" ? "Da" : "Nu"}` }
+        : null,
       appliedFilters.sort && appliedFilters.sort !== "newest"
         ? { key: "sort", label: `Sortare: ${sortLabels[appliedFilters.sort]}` }
         : null
@@ -188,6 +207,7 @@ export function MarketplacePage() {
     setFilters(initialFilters);
     setAppliedFilters(initialFilters);
     setPage(1);
+    setNaturalSearchStatus("");
   }
 
   function removeFilter(filterKey) {
@@ -215,6 +235,11 @@ export function MarketplacePage() {
       minPrice: appliedFilters.minPrice ? Number(appliedFilters.minPrice) : null,
       maxPrice: appliedFilters.maxPrice ? Number(appliedFilters.maxPrice) : null,
       rooms: appliedFilters.rooms ? Number(appliedFilters.rooms) : null,
+      balcony: appliedFilters.balcony === "" ? null : appliedFilters.balcony === "true",
+      parking: appliedFilters.parking || null,
+      furnished: appliedFilters.furnished || null,
+      hasOwnCentralHeating:
+        appliedFilters.hasOwnCentralHeating === "" ? null : appliedFilters.hasOwnCentralHeating === "true",
       sort: appliedFilters.sort || "newest"
     };
   }
@@ -260,6 +285,13 @@ export function MarketplacePage() {
       minPrice: savedSearch.minPrice ?? "",
       maxPrice: savedSearch.maxPrice ?? "",
       rooms: savedSearch.rooms ?? "",
+      balcony: savedSearch.balcony === null || savedSearch.balcony === undefined ? "" : String(savedSearch.balcony),
+      parking: savedSearch.parking ?? "",
+      furnished: savedSearch.furnished ?? "",
+      hasOwnCentralHeating:
+        savedSearch.hasOwnCentralHeating === null || savedSearch.hasOwnCentralHeating === undefined
+          ? ""
+          : String(savedSearch.hasOwnCentralHeating),
       sort: savedSearch.sort || "newest"
     };
 
@@ -283,6 +315,52 @@ export function MarketplacePage() {
     }
   }
 
+  async function applyNaturalSearch(event) {
+    event.preventDefault();
+
+    const queryText = naturalSearchText.trim();
+    if (queryText.length < 3) {
+      setError("Scrie cateva detalii despre proprietatea cautata.");
+      return;
+    }
+
+    setIsNaturalSearchLoading(true);
+    setError("");
+    setNaturalSearchStatus("");
+
+    try {
+      const response = await interpretListingSearch(queryText);
+      const interpreted = response.data;
+      const nextFilters = {
+        ...initialFilters,
+        city: interpreted.filters.city ?? "",
+        county: interpreted.filters.county ?? "",
+        maxPrice: interpreted.filters.maxPrice ?? "",
+        minPrice: interpreted.filters.minPrice ?? "",
+        propertyType: interpreted.filters.propertyType ?? "",
+        rooms: interpreted.filters.rooms ?? "",
+        balcony: interpreted.filters.balcony === null || interpreted.filters.balcony === undefined
+          ? ""
+          : String(interpreted.filters.balcony),
+        parking: interpreted.filters.parking ?? "",
+        furnished: interpreted.filters.furnished ?? "",
+        hasOwnCentralHeating:
+          interpreted.filters.hasOwnCentralHeating === null || interpreted.filters.hasOwnCentralHeating === undefined
+            ? ""
+            : String(interpreted.filters.hasOwnCentralHeating),
+        sort: interpreted.filters.sort || "newest",
+        transactionType: interpreted.filters.transactionType ?? ""
+      };
+
+      applyFilterValues(nextFilters);
+      setNaturalSearchStatus(interpreted.explanation || "Am aplicat filtrele din descrierea ta.");
+    } catch (apiError) {
+      setError(getApiErrorMessage(apiError));
+    } finally {
+      setIsNaturalSearchLoading(false);
+    }
+  }
+
   return (
     <section className="marketplace-page">
       <div className="marketplace-toolbar">
@@ -291,6 +369,23 @@ export function MarketplacePage() {
           <p>Exploreaza proprietati aprobate din orasele principale din Romania.</p>
         </div>
       </div>
+
+      <form className="natural-search-panel" onSubmit={applyNaturalSearch}>
+        <label>
+          Cauta cu AI
+          <textarea
+            value={naturalSearchText}
+            onChange={(event) => setNaturalSearchText(event.target.value)}
+            rows={2}
+            placeholder="Ex: Vreau un apartament de inchiriat in Bucuresti, 2 camere, sub 700 EUR, sortat dupa pret mic."
+          />
+        </label>
+        <button className="primary-button" type="submit" disabled={isNaturalSearchLoading}>
+          <Sparkles size={18} aria-hidden="true" />
+          {isNaturalSearchLoading ? "Interpretez..." : "Aplica filtre"}
+        </button>
+        {naturalSearchStatus ? <p className="form-success">{naturalSearchStatus}</p> : null}
+      </form>
 
       <MarketplaceMap listings={listings} onVisibleListingIdsChange={updateVisibleListingIds} />
 
@@ -329,7 +424,7 @@ export function MarketplacePage() {
           </select>
         </label>
         <label>
-          Tranzactie
+          Tip anunt
           <select name="transactionType" value={filters.transactionType} onChange={updateFilter}>
             <option value="">Toate</option>
             {Object.entries(transactionTypeLabels).map(([value, label]) => (
@@ -359,6 +454,44 @@ export function MarketplacePage() {
                 {label}
               </option>
             ))}
+          </select>
+        </label>
+        <label>
+          Mobilare
+          <select name="furnished" value={filters.furnished} onChange={updateFilter}>
+            <option value="">Toate</option>
+            {Object.entries(furnishingLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Parcare
+          <select name="parking" value={filters.parking} onChange={updateFilter}>
+            <option value="">Toate</option>
+            {Object.entries(parkingLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Balcon
+          <select name="balcony" value={filters.balcony} onChange={updateFilter}>
+            <option value="">Toate</option>
+            <option value="true">Da</option>
+            <option value="false">Nu</option>
+          </select>
+        </label>
+        <label>
+          Centrala proprie
+          <select name="hasOwnCentralHeating" value={filters.hasOwnCentralHeating} onChange={updateFilter}>
+            <option value="">Toate</option>
+            <option value="true">Da</option>
+            <option value="false">Nu</option>
           </select>
         </label>
         <div className="filter-actions">

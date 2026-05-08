@@ -23,6 +23,10 @@ function normalizeSavedSearchData(data) {
     minPrice: data.minPrice ?? null,
     maxPrice: data.maxPrice ?? null,
     rooms: data.rooms ?? null,
+    balcony: data.balcony ?? null,
+    parking: data.parking || null,
+    furnished: data.furnished || null,
+    hasOwnCentralHeating: data.hasOwnCentralHeating ?? null,
     sort: data.sort || "newest"
   };
 }
@@ -30,11 +34,11 @@ function normalizeSavedSearchData(data) {
 function normalizeSavedSearchUpdateData(data) {
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => {
-      if (["city", "county", "propertyType", "transactionType"].includes(key)) {
+      if (["city", "county", "propertyType", "transactionType", "parking", "furnished"].includes(key)) {
         return [key, value || null];
       }
 
-      if (["minPrice", "maxPrice", "rooms"].includes(key)) {
+      if (["minPrice", "maxPrice", "rooms", "balcony", "hasOwnCentralHeating"].includes(key)) {
         return [key, value ?? null];
       }
 

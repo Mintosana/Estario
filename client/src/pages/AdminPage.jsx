@@ -100,127 +100,138 @@ export function AdminPage() {
     <section className="dashboard-page">
       <div className="dashboard-header">
         <div>
-          <h1>Administrare anunturi</h1>
+          <h1>Moderare anunturi</h1>
           <p>Verifica anunturile trimise de utilizatori si decide ce devine public.</p>
         </div>
-        <button className="secondary-button icon-button" type="button" onClick={loadModerationQueues} disabled={isLoading}>
-          <RefreshCw size={18} aria-hidden="true" />
-          Actualizeaza
-        </button>
-      </div>
-
-      <div className="admin-tabs" role="tablist" aria-label="Liste de moderare">
-        {Object.entries(tabs).map(([value, label]) => (
-          <button
-            aria-selected={activeTab === value}
-            className={activeTab === value ? "active" : ""}
-            key={value}
-            onClick={() => setActiveTab(value)}
-            role="tab"
-            type="button"
-          >
-            {label}
-            <span>{value === "pending" ? pendingListings.length : rejectedListings.length}</span>
+        <div className="dashboard-actions">
+          <Link className="secondary-button" to="/admin/analytics">
+            Statistici platforma
+          </Link>
+          <button className="secondary-button icon-button" type="button" onClick={loadModerationQueues} disabled={isLoading}>
+            <RefreshCw size={18} aria-hidden="true" />
+            Actualizeaza
           </button>
-        ))}
+        </div>
       </div>
 
       {error ? <p className="form-error">{error}</p> : null}
       {success ? <p className="form-success">{success}</p> : null}
       {isLoading ? <div className="page-status">Se incarca anunturile pentru moderare...</div> : null}
 
-      {!isLoading && visibleListings.length === 0 ? (
-        <div className="empty-state">
-          <h2>{activeTab === "pending" ? "Nu exista anunturi in asteptare" : "Nu exista anunturi respinse"}</h2>
-          <p>
-            {activeTab === "pending"
-              ? "Cand utilizatorii trimit anunturi noi, acestea vor aparea aici pentru aprobare."
-              : "Anunturile respinse raman ascunse pana cand proprietarul le editeaza si le retrimite spre aprobare."}
-          </p>
+      <section className="moderation-section" aria-label="Moderare anunturi">
+        <div className="section-heading">
+          <h2>In asteptare / Respinse</h2>
         </div>
-      ) : null}
 
-      <div className="management-list">
-        {visibleListings.map((listing) => (
-          <article className="management-item admin-management-item" key={listing.id}>
-            <div className="management-info">
-              <span className={`status-badge status-${listing.status.toLowerCase()}`}>
-                {statusLabels[listing.status]}
-              </span>
-              <h2>{listing.title}</h2>
-              <p>
-                {propertyTypeLabels[listing.propertyType]} pentru {transactionTypeLabels[listing.transactionType].toLowerCase()} in{" "}
-                {listing.city}, {listing.county}
-              </p>
-              <dl className="admin-listing-facts">
-                <div>
-                  <dt>Pret</dt>
-                  <dd>{formatPrice(listing.price, listing.currency)}</dd>
-                </div>
-                <div>
-                  <dt>Suprafata</dt>
-                  <dd>{formatArea(listing.surface)}</dd>
-                </div>
-                <div>
-                  <dt>Camere</dt>
-                  <dd>{listing.rooms}</dd>
-                </div>
-                <div>
-                  <dt>Proprietar</dt>
-                  <dd>{listing.owner?.name ?? "Utilizator"}</dd>
-                </div>
-              </dl>
-            </div>
+        <div className="admin-tabs" role="tablist" aria-label="Liste de moderare">
+          {Object.entries(tabs).map(([value, label]) => (
+            <button
+              aria-selected={activeTab === value}
+              className={activeTab === value ? "active" : ""}
+              key={value}
+              onClick={() => setActiveTab(value)}
+              role="tab"
+              type="button"
+            >
+              {label}
+              <span>{value === "pending" ? pendingListings.length : rejectedListings.length}</span>
+            </button>
+          ))}
+        </div>
 
-            <div className="management-actions admin-actions">
-              <Link className="secondary-button" to={`/listings/${listing.id}`}>
-                <Eye size={16} aria-hidden="true" />
-                Vezi
-              </Link>
-              {listing.status === "PENDING" ? (
-                <button
-                  className="primary-button"
-                  disabled={actionId === listing.id}
-                  type="button"
-                  onClick={() => approve(listing.id)}
-                >
-                  <CheckCircle2 size={16} aria-hidden="true" />
-                  Aproba
-                </button>
-              ) : null}
-              {listing.status === "PENDING" ? (
-                <label className="admin-reject-reason">
-                  Motiv respingere
-                  <textarea
-                    maxLength={500}
-                    minLength={5}
-                    rows={3}
-                    value={rejectReasons[listing.id] ?? ""}
-                    onChange={(event) => updateRejectReason(listing.id, event.target.value)}
-                    placeholder="Explica ce trebuie corectat inainte de retrimitere."
-                  />
-                </label>
-              ) : null}
-              {listing.status === "PENDING" ? (
-                <button
-                  className="danger-button"
-                  disabled={actionId === listing.id}
-                  type="button"
-                  onClick={() => reject(listing.id)}
-                >
-                  <XCircle size={16} aria-hidden="true" />
-                  Respinge
-                </button>
-              ) : null}
-              {listing.status === "REJECTED" ? (
-                <p className="admin-review-note">
-                  <strong>Motiv respingere:</strong> {listing.rejectionReason || "Motiv necompletat."}
+        {!isLoading && visibleListings.length === 0 ? (
+          <div className="empty-state">
+            <h2>{activeTab === "pending" ? "Nu exista anunturi in asteptare" : "Nu exista anunturi respinse"}</h2>
+            <p>
+              {activeTab === "pending"
+                ? "Cand utilizatorii trimit anunturi noi, acestea vor aparea aici pentru aprobare."
+                : "Anunturile respinse raman ascunse pana cand proprietarul le editeaza si le retrimite spre aprobare."}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="management-list">
+          {visibleListings.map((listing) => (
+            <article className="management-item admin-management-item" key={listing.id}>
+              <div className="management-info">
+                <span className={`status-badge status-${listing.status.toLowerCase()}`}>
+                  {statusLabels[listing.status]}
+                </span>
+                <h2>{listing.title}</h2>
+                <p>
+                  {propertyTypeLabels[listing.propertyType]} pentru {transactionTypeLabels[listing.transactionType].toLowerCase()} in{" "}
+                  {listing.city}, {listing.county}
                 </p>
-              ) : null}
-            </div>
-          </article>
-        ))}
-      </div>
+                <dl className="admin-listing-facts">
+                  <div>
+                    <dt>Pret</dt>
+                    <dd>{formatPrice(listing.price, listing.currency)}</dd>
+                  </div>
+                  <div>
+                    <dt>Suprafata</dt>
+                    <dd>{formatArea(listing.surface)}</dd>
+                  </div>
+                  <div>
+                    <dt>Camere</dt>
+                    <dd>{listing.rooms}</dd>
+                  </div>
+                  <div>
+                    <dt>Proprietar</dt>
+                    <dd>{listing.owner?.name ?? "Utilizator"}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="management-actions admin-actions">
+                <Link className="secondary-button" to={`/listings/${listing.id}`}>
+                  <Eye size={16} aria-hidden="true" />
+                  Vezi
+                </Link>
+                {listing.status === "PENDING" ? (
+                  <button
+                    className="primary-button"
+                    disabled={actionId === listing.id}
+                    type="button"
+                    onClick={() => approve(listing.id)}
+                  >
+                    <CheckCircle2 size={16} aria-hidden="true" />
+                    Aproba
+                  </button>
+                ) : null}
+                {listing.status === "PENDING" ? (
+                  <label className="admin-reject-reason">
+                    Motiv respingere
+                    <textarea
+                      maxLength={500}
+                      minLength={5}
+                      rows={3}
+                      value={rejectReasons[listing.id] ?? ""}
+                      onChange={(event) => updateRejectReason(listing.id, event.target.value)}
+                      placeholder="Explica ce trebuie corectat inainte de retrimitere."
+                    />
+                  </label>
+                ) : null}
+                {listing.status === "PENDING" ? (
+                  <button
+                    className="danger-button"
+                    disabled={actionId === listing.id}
+                    type="button"
+                    onClick={() => reject(listing.id)}
+                  >
+                    <XCircle size={16} aria-hidden="true" />
+                    Respinge
+                  </button>
+                ) : null}
+                {listing.status === "REJECTED" ? (
+                  <p className="admin-review-note">
+                    <strong>Motiv respingere:</strong> {listing.rejectionReason || "Motiv necompletat."}
+                  </p>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }

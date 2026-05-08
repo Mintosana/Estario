@@ -1,8 +1,14 @@
 import { Bath, BedDouble, MapPin, Ruler } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiOrigin } from "../../api/axiosClient.js";
-import { propertyTypeLabels, transactionTypeLabels } from "../../constants/listingLabels.js";
-import { formatArea, formatPrice } from "../../utils/formatters.js";
+import {
+  furnishingLabels,
+  parkingLabels,
+  propertyTypeLabels,
+  transactionTypeLabels
+} from "../../constants/listingLabels.js";
+import { formatArea, formatPrice, formatPricePerSquareMeter } from "../../utils/formatters.js";
+import { CompareButton } from "./CompareButton.jsx";
 import { ListingImage } from "./ListingImage.jsx";
 
 export function ListingCard({ listing }) {
@@ -27,7 +33,10 @@ export function ListingCard({ listing }) {
           <MapPin size={16} aria-hidden="true" />
           {listing.city}, {listing.county}
         </p>
-        <p className="listing-price">{formatPrice(listing.price, listing.currency)}</p>
+        <div>
+          <p className="listing-price">{formatPrice(listing.price, listing.currency)}</p>
+          <p className="listing-price-sqm">{formatPricePerSquareMeter(listing.price, listing.surface, listing.currency)}</p>
+        </div>
         <dl className="listing-facts">
           <div>
             <Ruler size={16} aria-hidden="true" />
@@ -49,6 +58,13 @@ export function ListingCard({ listing }) {
             </div>
           ) : null}
         </dl>
+        <div className="listing-attribute-chips">
+          {listing.furnished ? <span>{furnishingLabels[listing.furnished]}</span> : null}
+          {listing.parking && listing.parking !== "NONE" ? <span>{parkingLabels[listing.parking]}</span> : null}
+          {listing.balcony ? <span>Balcon</span> : null}
+          {listing.hasOwnCentralHeating ? <span>Centrala proprie</span> : null}
+        </div>
+        <CompareButton listingId={listing.id} variant="compact" />
       </div>
     </article>
   );

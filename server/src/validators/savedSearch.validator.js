@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
+  furnishingStatuses,
   listingSortOptions,
+  parkingTypes,
   propertyTypes,
   transactionTypes
 } from "../constants/listingConstants.js";
@@ -18,6 +20,10 @@ const savedSearchBodyBase = z.object({
   minPrice: z.coerce.number().nonnegative().optional().nullable(),
   maxPrice: z.coerce.number().nonnegative().optional().nullable(),
   rooms: z.coerce.number().int().positive().optional().nullable(),
+  balcony: z.boolean().optional().nullable(),
+  parking: z.enum(parkingTypes).optional().nullable(),
+  furnished: z.enum(furnishingStatuses).optional().nullable(),
+  hasOwnCentralHeating: z.boolean().optional().nullable(),
   sort: z.enum(listingSortOptions).default("newest")
 });
 

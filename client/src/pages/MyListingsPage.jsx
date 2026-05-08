@@ -2,7 +2,7 @@ import { Edit, Eye, Mail, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../api/axiosClient.js";
-import { deleteListing, getMyListings } from "../api/listingsApi.js";
+import { deleteListing, getMyListingAnalytics, getMyListings } from "../api/listingsApi.js";
 import { getListingMessages } from "../api/messagesApi.js";
 import { propertyTypeLabels } from "../constants/listingLabels.js";
 import { statusLabels } from "../constants/statusLabels.js";
@@ -12,6 +12,7 @@ export function MyListingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [listings, setListings] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [messagesByListing, setMessagesByListing] = useState({});
   const [error, setError] = useState("");
   const [notice] = useState(location.state?.notice ?? "");
@@ -29,8 +30,9 @@ export function MyListingsPage() {
     setError("");
 
     try {
-      const response = await getMyListings();
-      setListings(response.data);
+      const [listingsResponse, analyticsResponse] = await Promise.all([getMyListings(), getMyListingAnalytics()]);
+      setListings(listingsResponse.data);
+      setAnalytics(analyticsResponse.data);
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -96,6 +98,31 @@ export function MyListingsPage() {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
       {isLoading ? <div className="page-status">Se incarca anunturile...</div> : null}
+
+      {!isLoading && analytics ? (
+        <div className="analytics-grid">
+          <article className="analytics-card">
+            <span>Anunturi</span>
+            <strong>{analytics.totalListings}</strong>
+            <p>{analytics.statusCounts.APPROVED} aprobate</p>
+          </article>
+          <article className="analytics-card">
+            <span>Vizualizari</span>
+            <strong>{analytics.totalViews}</strong>
+            <p>Pe toate anunturile tale</p>
+          </article>
+          <article className="analytics-card">
+            <span>Favorite</span>
+            <strong>{analytics.totalFavorites}</strong>
+            <p>Salvari de la utilizatori</p>
+          </article>
+          <article className="analytics-card">
+            <span>Mesaje</span>
+            <strong>{analytics.totalMessages}</strong>
+            <p>Primite pentru anunturi</p>
+          </article>
+        </div>
+      ) : null}
 
       {!isLoading && listings.length === 0 ? (
         <div className="empty-state">

@@ -19,5 +19,7 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   jwtSecret: process.env.JWT_SECRET,
   nodeEnv: process.env.NODE_ENV ?? "development",
+  openAiApiKey: process.env.OPENAI_API_KEY ?? "",
+  openAiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
   port: Number(process.env.PORT ?? 5000)
 };

@@ -10,8 +10,18 @@ export async function getListing(id) {
   return response.data;
 }
 
+export async function interpretListingSearch(query) {
+  const response = await axiosClient.post("/listings/interpret-search", { query });
+  return response.data;
+}
+
 export async function getMyListings() {
   const response = await axiosClient.get("/my-listings");
+  return response.data;
+}
+
+export async function getMyListingAnalytics() {
+  const response = await axiosClient.get("/my-listings/analytics");
   return response.data;
 }
 

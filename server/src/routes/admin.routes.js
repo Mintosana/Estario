@@ -3,7 +3,8 @@ import {
   approveListingAction,
   listPendingListings,
   listRejectedListings,
-  rejectListingAction
+  rejectListingAction,
+  showAdminAnalytics
 } from "../controllers/admin.controller.js";
 import { adminMiddleware } from "../middleware/admin.middleware.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
@@ -18,6 +19,7 @@ const router = Router();
 
 router.use(authMiddleware, adminMiddleware);
 
+router.get("/admin/analytics", asyncHandler(showAdminAnalytics));
 router.get("/admin/listings/pending", asyncHandler(listPendingListings));
 router.get("/admin/listings/rejected", asyncHandler(listRejectedListings));
 router.patch(

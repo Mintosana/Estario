@@ -1,13 +1,22 @@
 import { z } from "zod";
 import {
+  buildingConditions,
   currencies,
+  energyClasses,
+  furnishingStatuses,
+  heatingTypes,
   listingSortOptions,
+  parkingTypes,
   propertyTypes,
   transactionTypes
 } from "../constants/listingConstants.js";
 
 const optionalPositiveInt = z.coerce.number().int().positive().optional().nullable();
 const optionalInt = z.coerce.number().int().optional().nullable();
+const optionalBooleanQuery = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true")
+  .optional();
 
 const listingBodyBase = {
   title: z
@@ -66,7 +75,14 @@ const listingBodyBase = {
     .min(1800, "Anul constructiei nu este valid.")
     .max(new Date().getFullYear() + 1, "Anul constructiei nu este valid.")
     .optional()
-    .nullable()
+    .nullable(),
+  balcony: z.boolean().optional().nullable(),
+  parking: z.enum(parkingTypes).optional().nullable(),
+  furnished: z.enum(furnishingStatuses).optional().nullable(),
+  heatingType: z.enum(heatingTypes).optional().nullable(),
+  hasOwnCentralHeating: z.boolean().optional().nullable(),
+  buildingCondition: z.enum(buildingConditions).optional().nullable(),
+  energyClass: z.enum(energyClasses).optional().nullable()
 };
 
 export const listingIdParamsSchema = z.object({
@@ -112,6 +128,10 @@ export const listingFiltersSchema = z.object({
       minPrice: z.coerce.number().nonnegative().optional(),
       maxPrice: z.coerce.number().nonnegative().optional(),
       rooms: z.coerce.number().int().positive().optional(),
+      balcony: optionalBooleanQuery,
+      parking: z.enum(parkingTypes).optional(),
+      furnished: z.enum(furnishingStatuses).optional(),
+      hasOwnCentralHeating: optionalBooleanQuery,
       page: z.coerce.number().int().positive().default(1),
       limit: z.coerce.number().int().positive().max(50).default(12),
       sort: z.enum(listingSortOptions).default("newest")
@@ -126,4 +146,16 @@ export const listingFiltersSchema = z.object({
         path: ["minPrice"]
       }
     )
+});
+
+export const naturalListingSearchSchema = z.object({
+  body: z.object({
+    query: z
+      .string({ required_error: "Descrie ce fel de proprietate cauti." })
+      .trim()
+      .min(3, "Descrierea cautarii este prea scurta.")
+      .max(500, "Descrierea cautarii este prea lunga.")
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional()
 });

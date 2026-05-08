@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout.jsx";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute.jsx";
@@ -8,7 +9,22 @@ import { ListingDetailsPage } from "./pages/ListingDetailsPage.jsx";
 import { ListingFormPage } from "./pages/ListingFormPage.jsx";
 import { MyListingsPage } from "./pages/MyListingsPage.jsx";
 import { AdminPage } from "./pages/AdminPage.jsx";
+import { ConversationPage } from "./pages/ConversationPage.jsx";
+import { ComparePage } from "./pages/ComparePage.jsx";
 import { FavoritesPage } from "./pages/FavoritesPage.jsx";
+import { MessagesInboxPage } from "./pages/MessagesInboxPage.jsx";
+
+const AdminAnalyticsPage = lazy(() =>
+  import("./pages/AdminAnalyticsPage.jsx").then((module) => ({ default: module.AdminAnalyticsPage }))
+);
+
+function LazyAdminAnalyticsPage() {
+  return (
+    <Suspense fallback={<div className="page-status">Se incarca statisticile...</div>}>
+      <AdminAnalyticsPage />
+    </Suspense>
+  );
+}
 
 export default function App() {
   return (
@@ -16,16 +32,20 @@ export default function App() {
       <Routes>
         <Route path="/" element={<MarketplacePage />} />
         <Route path="/listings/:id" element={<ListingDetailsPage />} />
+        <Route path="/compare" element={<ComparePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/messages" element={<MessagesInboxPage />} />
+          <Route path="/messages/:id" element={<ConversationPage />} />
           <Route path="/my-listings" element={<MyListingsPage />} />
           <Route path="/listings/new" element={<ListingFormPage mode="create" />} />
           <Route path="/listings/:id/edit" element={<ListingFormPage mode="edit" />} />
         </Route>
         <Route element={<ProtectedRoute requireAdmin />}>
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/analytics" element={<LazyAdminAnalyticsPage />} />
         </Route>
       </Routes>
     </AppLayout>

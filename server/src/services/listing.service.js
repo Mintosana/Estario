@@ -49,6 +49,10 @@ function publicWhereFromFilters(filters) {
     ...(filters.propertyType ? { propertyType: filters.propertyType } : {}),
     ...(filters.transactionType ? { transactionType: filters.transactionType } : {}),
     ...(filters.rooms ? { rooms: filters.rooms } : {}),
+    ...(filters.balcony !== undefined ? { balcony: filters.balcony } : {}),
+    ...(filters.parking ? { parking: filters.parking } : {}),
+    ...(filters.furnished ? { furnished: filters.furnished } : {}),
+    ...(filters.hasOwnCentralHeating !== undefined ? { hasOwnCentralHeating: filters.hasOwnCentralHeating } : {}),
     ...(filters.minPrice !== undefined || filters.maxPrice !== undefined
       ? {
           price: {
@@ -127,6 +131,18 @@ export async function getListingById(id, user) {
     throw new AppError("Anuntul nu a fost gasit.", 404);
   }
 
+  if (listing.status === "APPROVED" && !canManageListing(listing, user)) {
+    await prisma.listing.update({
+      where: { id },
+      data: {
+        viewCount: {
+          increment: 1
+        }
+      }
+    });
+    listing.viewCount += 1;
+  }
+
   return serializeListing(listing);
 }
 
@@ -138,6 +154,53 @@ export async function getMyListings(userId) {
   });
 
   return serializeListings(listings);
+}
+
+export async function getMyListingAnalytics(userId) {
+  const listings = await prisma.listing.findMany({
+    where: { ownerId: userId },
+    select: {
+      id: true,
+      status: true,
+      viewCount: true,
+      _count: {
+        select: {
+          favorites: true,
+          conversations: true,
+          messages: true
+        }
+      }
+    }
+  });
+
+  const totals = listings.reduce(
+    (current, listing) => {
+      current.totalListings += 1;
+      current.totalViews += listing.viewCount;
+      current.totalFavorites += listing._count.favorites;
+      current.totalConversations += listing._count.conversations;
+      current.totalMessages += listing._count.messages;
+      current.statusCounts[listing.status] = (current.statusCounts[listing.status] ?? 0) + 1;
+      return current;
+    },
+    {
+      statusCounts: {
+        APPROVED: 0,
+        PENDING: 0,
+        REJECTED: 0
+      },
+      totalConversations: 0,
+      totalFavorites: 0,
+      totalListings: 0,
+      totalMessages: 0,
+      totalViews: 0
+    }
+  );
+
+  return {
+    ...totals,
+    contactRate: totals.totalViews > 0 ? Number(((totals.totalConversations / totals.totalViews) * 100).toFixed(1)) : 0
+  };
 }
 
 export async function createListing(userId, data) {

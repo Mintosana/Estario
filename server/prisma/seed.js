@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import { PrismaClient } from "@prisma/client";
+import { demoPois } from "./demoPois.js";
 
 const prisma = new PrismaClient();
 
@@ -39,6 +40,38 @@ function imagesForListing(listing, typeIndex) {
     url,
     position
   }));
+}
+
+function advancedAttributesForListing(listing, index) {
+  if (listing.propertyType === "LAND") {
+    return {
+      balcony: null,
+      parking: null,
+      furnished: null,
+      heatingType: null,
+      hasOwnCentralHeating: null,
+      buildingCondition: null,
+      energyClass: null
+    };
+  }
+
+  const isNewer = listing.yearBuilt && listing.yearBuilt >= 2018;
+  const isHouse = listing.propertyType === "HOUSE";
+  const isStudio = listing.propertyType === "STUDIO";
+  const parkingOptions = isHouse ? ["GARAGE", "PARKING_SPOT"] : ["NONE", "PARKING_SPOT"];
+  const furnishedOptions = listing.transactionType === "RENT" || isStudio
+    ? ["FURNISHED", "PARTIAL"]
+    : ["UNFURNISHED", "PARTIAL", "FURNISHED"];
+
+  return {
+    balcony: isHouse ? false : index % 4 !== 1,
+    parking: parkingOptions[index % parkingOptions.length],
+    furnished: furnishedOptions[index % furnishedOptions.length],
+    heatingType: isNewer || isHouse ? "OWN_CENTRAL" : index % 3 === 0 ? "DISTRICT" : "GAS",
+    hasOwnCentralHeating: Boolean(isNewer || isHouse || index % 3 !== 0),
+    buildingCondition: isNewer ? "NEW" : index % 3 === 0 ? "RENOVATED" : "GOOD",
+    energyClass: isNewer ? "A" : index % 2 === 0 ? "B" : "C"
+  };
 }
 
 const demoUsers = [
@@ -604,6 +637,8 @@ const listings = [
 
 async function main() {
   await prisma.message.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.pointOfInterest.deleteMany();
   await prisma.favorite.deleteMany();
   await prisma.savedSearch.deleteMany();
   await prisma.listingImage.deleteMany();
@@ -643,6 +678,7 @@ async function main() {
     imageCounters[listing.propertyType] = typeIndex + 1;
     const created = await prisma.listing.create({
       data: {
+        ...advancedAttributesForListing(listing, index),
         ...listing,
         ownerId: owner.id,
         images: {
@@ -665,15 +701,29 @@ async function main() {
 
   const messageListing = createdListings.find((listing) => listing.ownerId === users[1].id && listing.status === "APPROVED");
   if (messageListing) {
+    const conversation = await prisma.conversation.create({
+      data: {
+        listingId: messageListing.id,
+        ownerId: users[1].id,
+        buyerId: users[2].id
+      }
+    });
+
     await prisma.message.create({
       data: {
         listingId: messageListing.id,
+        conversationId: conversation.id,
+        senderId: users[2].id,
         senderName: "Mihai Dumitrescu",
-        senderEmail: "mihai@example.com",
+        senderEmail: users[2].email,
         message: "Buna ziua, proprietatea mai este disponibila pentru vizionare saptamana aceasta?"
       }
     });
   }
+
+  await prisma.pointOfInterest.createMany({
+    data: demoPois
+  });
 }
 
 main()

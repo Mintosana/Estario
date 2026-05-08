@@ -3,8 +3,10 @@ import {
   destroyListing,
   destroyListingImage,
   editListing,
+  interpretListingSearchAction,
   listMyListings,
   listPublicListings,
+  showMyListingAnalytics,
   showListing,
   storeListing,
   uploadListingImages
@@ -15,6 +17,7 @@ import { validateMiddleware } from "../middleware/validate.middleware.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
   createListingSchema,
+  naturalListingSearchSchema,
   listingFiltersSchema,
   listingIdParamsSchema,
   listingImageParamsSchema,
@@ -24,6 +27,12 @@ import {
 const router = Router();
 
 router.get("/listings", validateMiddleware(listingFiltersSchema), asyncHandler(listPublicListings));
+router.post(
+  "/listings/interpret-search",
+  validateMiddleware(naturalListingSearchSchema),
+  asyncHandler(interpretListingSearchAction)
+);
+router.get("/my-listings/analytics", authMiddleware, asyncHandler(showMyListingAnalytics));
 router.get(
   "/listings/:id",
   optionalAuthMiddleware,

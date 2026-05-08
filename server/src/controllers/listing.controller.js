@@ -3,15 +3,22 @@ import {
   createListing,
   deleteListing,
   getListingById,
+  getMyListingAnalytics,
   getMyListings,
   getPublicListings,
   removeListingImage,
   updateListing
 } from "../services/listing.service.js";
+import { interpretListingSearch } from "../services/naturalListingSearch.service.js";
 
 export async function listPublicListings(req, res) {
   const result = await getPublicListings(req.validated.query);
   res.json(result);
+}
+
+export async function interpretListingSearchAction(req, res) {
+  const result = await interpretListingSearch(req.validated.body.query);
+  res.json({ data: result });
 }
 
 export async function showListing(req, res) {
@@ -22,6 +29,11 @@ export async function showListing(req, res) {
 export async function listMyListings(req, res) {
   const listings = await getMyListings(req.user.id);
   res.json({ data: listings });
+}
+
+export async function showMyListingAnalytics(req, res) {
+  const analytics = await getMyListingAnalytics(req.user.id);
+  res.json({ data: analytics });
 }
 
 export async function storeListing(req, res) {

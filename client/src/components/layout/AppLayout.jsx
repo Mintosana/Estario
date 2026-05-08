@@ -1,6 +1,7 @@
 import { Building2 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { CompareTray } from "../listings/CompareTray.jsx";
 
 export function AppLayout({ children }) {
   const { isAdmin, isAuthenticated, logout, user } = useAuth();
@@ -23,6 +24,7 @@ export function AppLayout({ children }) {
           {isAuthenticated ? (
             <>
               <NavLink to="/favorites">Favorite</NavLink>
+              <NavLink to="/messages">Mesaje</NavLink>
               <NavLink to="/my-listings">Anunturile mele</NavLink>
               <NavLink to="/listings/new">Adauga anunt</NavLink>
               {isAdmin ? <NavLink to="/admin">Administrare</NavLink> : null}
@@ -40,6 +42,7 @@ export function AppLayout({ children }) {
         </nav>
       </header>
       <main>{children}</main>
+      <CompareTray />
     </div>
   );
 }

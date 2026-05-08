@@ -1,4 +1,4 @@
-import { CheckCircle2, Heart, Mail, MapPin, UserCircle, XCircle } from "lucide-react";
+import { Bus, CheckCircle2, Heart, Hospital, Mail, MapPin, School, ShoppingBag, Train, UserCircle, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { approveListing, rejectListing } from "../api/adminApi.js";
@@ -6,16 +6,34 @@ import { getApiErrorMessage, apiOrigin } from "../api/axiosClient.js";
 import { addFavorite, getFavorites, removeFavorite } from "../api/favoritesApi.js";
 import { getListing } from "../api/listingsApi.js";
 import { createMessage } from "../api/messagesApi.js";
+import { getNearbyPlaces } from "../api/nearbyPlacesApi.js";
+import { CompareButton } from "../components/listings/CompareButton.jsx";
 import { ListingMap } from "../components/listings/ListingMap.jsx";
 import { ListingImage } from "../components/listings/ListingImage.jsx";
-import { propertyTypeLabels, transactionTypeLabels } from "../constants/listingLabels.js";
+import {
+  buildingConditionLabels,
+  energyClassLabels,
+  furnishingLabels,
+  heatingTypeLabels,
+  parkingLabels,
+  propertyTypeLabels,
+  transactionTypeLabels
+} from "../constants/listingLabels.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import { formatArea, formatPrice } from "../utils/formatters.js";
+import { formatArea, formatDistance, formatPrice, formatPricePerSquareMeter } from "../utils/formatters.js";
 
 const initialMessage = {
   senderName: "",
   senderEmail: "",
   message: ""
+};
+
+const nearbyIcons = {
+  metro: Train,
+  stb: Bus,
+  shop: ShoppingBag,
+  school: School,
+  hospital: Hospital
 };
 
 export function ListingDetailsPage() {
@@ -30,6 +48,8 @@ export function ListingDetailsPage() {
   const [error, setError] = useState("");
   const [messageStatus, setMessageStatus] = useState("");
   const [moderationStatus, setModerationStatus] = useState("");
+  const [nearbyPlaces, setNearbyPlaces] = useState([]);
+  const [nearbyStatus, setNearbyStatus] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isModerating, setIsModerating] = useState(false);
@@ -40,6 +60,7 @@ export function ListingDetailsPage() {
   const images = useMemo(() => listing?.images ?? [], [listing]);
   const isOwnListing = Boolean(user && listing?.ownerId === user.id);
   const canModerateListing = isAdmin && listing?.status === "PENDING";
+  const visibleNearbyPlaces = nearbyPlaces.filter((item) => item.place);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,6 +103,37 @@ export function ListingDetailsPage() {
       isMounted = false;
     };
   }, [id, isAuthenticated, user]);
+
+  useEffect(() => {
+    if (!listing?.latitude || !listing?.longitude) {
+      setNearbyPlaces([]);
+      setNearbyStatus("");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    async function loadNearbyPlaces() {
+      setNearbyStatus("Se incarca punctele din apropiere...");
+
+      try {
+        const places = await getNearbyPlaces(listing.latitude, listing.longitude, controller.signal);
+        setNearbyPlaces(places);
+        setNearbyStatus("");
+      } catch (apiError) {
+        if (apiError.name !== "AbortError") {
+          setNearbyPlaces([]);
+          setNearbyStatus("Nu am putut incarca punctele din apropiere.");
+        }
+      }
+    }
+
+    loadNearbyPlaces();
+
+    return () => {
+      controller.abort();
+    };
+  }, [listing?.latitude, listing?.longitude]);
 
   function updateMessageField(event) {
     setMessageForm((current) => ({
@@ -244,7 +296,12 @@ export function ListingDetailsPage() {
                   {listing.address}, {listing.city}, {listing.county}
                 </p>
               </div>
-              <p className="details-price">{formatPrice(listing.price, listing.currency)}</p>
+              <div className="details-price-block">
+                <p className="details-price">{formatPrice(listing.price, listing.currency)}</p>
+                <p className="details-price-sqm">
+                  {formatPricePerSquareMeter(listing.price, listing.surface, listing.currency)}
+                </p>
+              </div>
             </div>
 
             <dl className="details-facts">
@@ -253,12 +310,16 @@ export function ListingDetailsPage() {
                 <dd>{propertyTypeLabels[listing.propertyType]}</dd>
               </div>
               <div>
-                <dt>Tranzactie</dt>
+                <dt>Tip anunt</dt>
                 <dd>{transactionTypeLabels[listing.transactionType]}</dd>
               </div>
               <div>
                 <dt>Suprafata</dt>
                 <dd>{formatArea(listing.surface)}</dd>
+              </div>
+              <div>
+                <dt>Pret pe mp</dt>
+                <dd>{formatPricePerSquareMeter(listing.price, listing.surface, listing.currency)}</dd>
               </div>
               <div>
                 <dt>Camere</dt>
@@ -283,8 +344,73 @@ export function ListingDetailsPage() {
           </section>
 
           <section className="content-panel">
+            <h2>Dotari si caracteristici</h2>
+            <dl className="details-facts">
+              <div>
+                <dt>Mobilare</dt>
+                <dd>{listing.furnished ? furnishingLabels[listing.furnished] : "-"}</dd>
+              </div>
+              <div>
+                <dt>Parcare</dt>
+                <dd>{listing.parking ? parkingLabels[listing.parking] : "-"}</dd>
+              </div>
+              <div>
+                <dt>Balcon</dt>
+                <dd>{listing.balcony === null || listing.balcony === undefined ? "-" : listing.balcony ? "Da" : "Nu"}</dd>
+              </div>
+              <div>
+                <dt>Centrala proprie</dt>
+                <dd>
+                  {listing.hasOwnCentralHeating === null || listing.hasOwnCentralHeating === undefined
+                    ? "-"
+                    : listing.hasOwnCentralHeating
+                      ? "Da"
+                      : "Nu"}
+                </dd>
+              </div>
+              <div>
+                <dt>Tip incalzire</dt>
+                <dd>{listing.heatingType ? heatingTypeLabels[listing.heatingType] : "-"}</dd>
+              </div>
+              <div>
+                <dt>Stare imobil</dt>
+                <dd>{listing.buildingCondition ? buildingConditionLabels[listing.buildingCondition] : "-"}</dd>
+              </div>
+              <div>
+                <dt>Clasa energetica</dt>
+                <dd>{listing.energyClass ? energyClassLabels[listing.energyClass] : "-"}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="content-panel">
             <h2>Locatie</h2>
             <ListingMap latitude={listing.latitude} longitude={listing.longitude} title={listing.title} />
+          </section>
+
+          <section className="content-panel">
+            <h2>In apropiere</h2>
+            {nearbyStatus ? <p>{nearbyStatus}</p> : null}
+            {!nearbyStatus && visibleNearbyPlaces.length ? (
+              <div className="nearby-grid">
+                {visibleNearbyPlaces.map((item) => {
+                  const Icon = nearbyIcons[item.category] ?? MapPin;
+
+                  return (
+                    <article className="nearby-item" key={item.category}>
+                      <div className="nearby-icon">
+                        <Icon size={18} aria-hidden="true" />
+                      </div>
+                      <div>
+                        <span>{item.label}</span>
+                        <strong>{item.place.name}</strong>
+                        <p>{formatDistance(item.place.distance)} de proprietate</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
           </section>
         </div>
 
@@ -342,6 +468,8 @@ export function ListingDetailsPage() {
               Autentifica-te pentru favorite
             </Link>
           )}
+
+          <CompareButton listingId={listing.id} />
 
           <form className="contact-form" onSubmit={submitMessage}>
             <h2>Contacteaza proprietarul</h2>

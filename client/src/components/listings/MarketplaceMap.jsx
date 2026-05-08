@@ -2,73 +2,57 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { apiOrigin } from "../../api/axiosClient.js";
+import { getPointsOfInterest } from "../../api/pointsOfInterestApi.js";
 import { propertyTypeLabels, transactionTypeLabels } from "../../constants/listingLabels.js";
-import { formatArea, formatPrice } from "../../utils/formatters.js";
+import { formatArea, formatPrice, formatPricePerSquareMeter } from "../../utils/formatters.js";
 
 const romaniaCenter = [45.9443, 24.9668];
 const defaultZoom = 6;
 const clusterDistance = 46;
 const singleListingZoom = 13;
-const poiMinZoom = 13;
-const overpassEndpoints = [
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass-api.de/api/interpreter"
-];
+const poiMinZoom = 15;
+const poiLoadDelayMs = 350;
 
 const poiCategories = {
   metro: {
     color: "#2563eb",
     label: "Metrou",
     marker: "M",
-    markerClass: "poi-marker-metro",
-    queries: [
-      'node["railway"="subway_entrance"]',
-      'node["station"="subway"]',
-      'node["railway"="station"]["station"="subway"]'
-    ]
+    markerClass: "poi-marker-metro"
   },
   bus: {
     color: "#ea580c",
     label: "STB autobuz",
     marker: "bus",
-    markerClass: "poi-marker-transit",
-    queries: ['node["highway"="bus_stop"]']
+    markerClass: "poi-marker-transit"
   },
   trolley: {
     color: "#0891b2",
     label: "STB troleibuz",
     marker: "trolley",
-    markerClass: "poi-marker-transit",
-    queries: [
-      'node["highway"="bus_stop"]["trolleybus"="yes"]',
-      'node["public_transport"="platform"]["trolleybus"="yes"]'
-    ]
+    markerClass: "poi-marker-transit"
   },
   tram: {
     color: "#9333ea",
     label: "STB tramvai",
     marker: "TR",
-    markerClass: "poi-marker-transit",
-    queries: ['node["railway"="tram_stop"]']
+    markerClass: "poi-marker-transit"
   },
   healthcare: {
     color: "#dc2626",
     label: "Spitale",
-    marker: "H",
-    queries: ['node["amenity"="hospital"]', 'node["amenity"="clinic"]', 'node["amenity"="doctors"]']
+    marker: "H"
   },
   education: {
     color: "#7c3aed",
     label: "Scoli",
-    marker: "S",
-    queries: ['node["amenity"="school"]', 'node["amenity"="kindergarten"]', 'node["amenity"="university"]']
+    marker: "S"
   },
   groceries: {
     color: "#16a34a",
     label: "Magazine",
     marker: "bag",
-    markerClass: "poi-marker-shop",
-    queries: ['node["shop"="supermarket"]', 'node["shop"="convenience"]', 'node["shop"="greengrocer"]']
+    markerClass: "poi-marker-shop"
   }
 };
 
@@ -153,6 +137,7 @@ function bindListingPopup(marker, listing) {
         <span>${escapeHtml(transactionTypeLabels[listing.transactionType])} - ${escapeHtml(propertyTypeLabels[listing.propertyType])}</span>
         <span>${escapeHtml(listing.city)}, ${escapeHtml(listing.county)} - ${escapeHtml(formatArea(listing.surface))}</span>
         <b>${escapeHtml(formatPrice(listing.price, listing.currency))}</b>
+        <span>${escapeHtml(formatPricePerSquareMeter(listing.price, listing.surface, listing.currency))}</span>
         <a href="/listings/${escapeHtml(listing.id)}">Vezi anuntul</a>
       </div>
     `,
@@ -162,52 +147,6 @@ function bindListingPopup(marker, listing) {
       minWidth: 220
     }
   );
-}
-
-function poiCategoryForTags(tags = {}) {
-  if (tags.railway === "subway_entrance" || tags.station === "subway") {
-    return "metro";
-  }
-
-  if (tags.trolleybus === "yes") {
-    return "trolley";
-  }
-
-  if (tags.railway === "tram_stop") {
-    return "tram";
-  }
-
-  if (tags.highway === "bus_stop") {
-    return "bus";
-  }
-
-  if (["hospital", "clinic", "doctors"].includes(tags.amenity)) {
-    return "healthcare";
-  }
-
-  if (["school", "kindergarten", "university"].includes(tags.amenity)) {
-    return "education";
-  }
-
-  if (["supermarket", "convenience", "greengrocer"].includes(tags.shop)) {
-    return "groceries";
-  }
-
-  return null;
-}
-
-function buildCategoryOverpassQuery(bounds, category) {
-  const bbox = [
-    bounds.getSouth().toFixed(6),
-    bounds.getWest().toFixed(6),
-    bounds.getNorth().toFixed(6),
-    bounds.getEast().toFixed(6)
-  ].join(",");
-  const queries = poiCategories[category].queries
-    .map((query) => `${query}(${bbox});`)
-    .join("");
-
-  return `[out:json][timeout:12];(${queries});out center 120;`;
 }
 
 function poiCacheKey(bounds, category) {
@@ -260,11 +199,10 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
   const listingsRef = useRef(listings);
   const callbackRef = useRef(onVisibleListingIdsChange);
   const fittedListingsKeyRef = useRef("");
-  const poiRequestRef = useRef(null);
   const poiCacheRef = useRef(new Map());
+  const poiLoadTimeoutRef = useRef(null);
   const loadedPoisRef = useRef(new Map());
   const [activePoiCategories, setActivePoiCategories] = useState(initialPoiCategories);
-  const [poiStatus, setPoiStatus] = useState("");
   const [isPoiLoading, setIsPoiLoading] = useState(false);
 
   useEffect(() => {
@@ -288,6 +226,11 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
+
+    map.createPane("listingMarkers");
+    map.getPane("listingMarkers").style.zIndex = 650;
+    map.createPane("poiMarkers");
+    map.getPane("poiMarkers").style.zIndex = 620;
 
     layerRef.current = L.layerGroup().addTo(map);
     poiLayerRef.current = L.layerGroup().addTo(map);
@@ -329,6 +272,7 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
             color: "#ffffff",
             fillColor: "#0f4c5c",
             fillOpacity: 0.95,
+            pane: "listingMarkers",
             radius: 8,
             weight: 2
           });
@@ -343,7 +287,8 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
             html: `<span>${cluster.listings.length}</span>`,
             iconSize: [38, 38],
             iconAnchor: [19, 19]
-          })
+          }),
+          pane: "listingMarkers"
         });
         marker.on("click", () => {
           const bounds = L.latLngBounds(cluster.listings.map(listingLatLng));
@@ -356,10 +301,12 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
     }
 
     renderMarkers();
-    map.on("moveend zoomend", renderMarkers);
+    map.on("moveend", updateVisibleListings);
+    map.on("zoomend", renderMarkers);
 
     return () => {
-      map.off("moveend zoomend", renderMarkers);
+      map.off("moveend", updateVisibleListings);
+      map.off("zoomend", renderMarkers);
     };
   }, [listings]);
 
@@ -409,179 +356,107 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
       return undefined;
     }
 
-    function markPoiLayerStale() {
-      poiRequestRef.current?.abort();
-      setIsPoiLoading(false);
-      setPoiStatus("");
+    function selectedCategories() {
+      return Object.entries(activePoiCategories)
+        .filter(([, isEnabled]) => isEnabled)
+        .map(([category]) => category);
     }
 
-    map.on("moveend zoomend", markPoiLayerStale);
+    function renderLoadedPois() {
+      poiLayer.clearLayers();
+
+      Array.from(loadedPoisRef.current.values()).forEach((poi) => {
+        if (!activePoiCategories[poi.category]) {
+          return;
+        }
+
+        const category = poiCategories[poi.category];
+
+        if (!category) {
+          return;
+        }
+
+        const marker = L.marker([poi.latitude, poi.longitude], {
+          icon: L.divIcon({
+            className: `poi-marker ${category.markerClass ?? ""}`,
+            html: `<span style="background-color:${category.color}">${iconHtml(category)}</span>`,
+            iconAnchor: [14, 14],
+            iconSize: [20, 20]
+          }),
+          pane: "poiMarkers"
+        });
+        bindPoiPopup(marker, poi);
+        marker.addTo(poiLayer);
+      });
+    }
+
+    function clearPoiLoadTimer() {
+      if (poiLoadTimeoutRef.current) {
+        window.clearTimeout(poiLoadTimeoutRef.current);
+        poiLoadTimeoutRef.current = null;
+      }
+    }
+
+    async function loadPoisForCurrentBounds() {
+      const categories = selectedCategories();
+
+      if (!categories.length || map.getZoom() < poiMinZoom) {
+        loadedPoisRef.current.clear();
+        poiLayer.clearLayers();
+        setIsPoiLoading(false);
+        return;
+      }
+
+      const bounds = map.getBounds();
+      const cacheKey = poiCacheKey(bounds, categories.join("|"));
+      const cachedPois = poiCacheRef.current.get(cacheKey);
+
+      if (cachedPois) {
+        loadedPoisRef.current = new Map(cachedPois.map((poi) => [poiKey(poi), poi]));
+        renderLoadedPois();
+        setIsPoiLoading(false);
+        return;
+      }
+
+      setIsPoiLoading(true);
+
+      try {
+        const response = await getPointsOfInterest(bounds, categories);
+        const pois = response.data ?? [];
+        poiCacheRef.current.set(cacheKey, pois);
+        loadedPoisRef.current = new Map(pois.map((poi) => [poiKey(poi), poi]));
+        renderLoadedPois();
+      } catch {
+        loadedPoisRef.current.clear();
+        poiLayer.clearLayers();
+      } finally {
+        setIsPoiLoading(false);
+      }
+    }
+
+    function schedulePoiLoad() {
+      clearPoiLoadTimer();
+      poiLoadTimeoutRef.current = window.setTimeout(loadPoisForCurrentBounds, poiLoadDelayMs);
+    }
+
+    schedulePoiLoad();
+    map.on("moveend zoomend", schedulePoiLoad);
 
     return () => {
-      map.off("moveend zoomend", markPoiLayerStale);
-      poiRequestRef.current?.abort();
+      clearPoiLoadTimer();
+      map.off("moveend zoomend", schedulePoiLoad);
     };
-  }, []);
+  }, [activePoiCategories]);
 
 function poiKey(poi) {
   return `${poi.category}:${poi.id}`;
 }
-
-  function mergePois(pois) {
-    pois.forEach((poi) => {
-      loadedPoisRef.current.set(poiKey(poi), poi);
-    });
-  }
-
-  function renderLoadedPois() {
-    const poiLayer = poiLayerRef.current;
-
-    if (!poiLayer) {
-      return;
-    }
-
-    poiLayer.clearLayers();
-
-    Array.from(loadedPoisRef.current.values()).forEach((poi) => {
-      const category = poiCategories[poi.category];
-      const marker = L.marker([poi.latitude, poi.longitude], {
-        icon: L.divIcon({
-          className: `poi-marker ${category.markerClass ?? ""}`,
-          html: `<span style="background-color:${category.color}">${iconHtml(category)}</span>`,
-          iconAnchor: [14, 14],
-          iconSize: [28, 28]
-        })
-      });
-      bindPoiPopup(marker, poi);
-      marker.addTo(poiLayer);
-    });
-  }
-
-  async function loadPois() {
-    const map = mapRef.current;
-    const poiLayer = poiLayerRef.current;
-
-    if (!map || !poiLayer) {
-      return;
-    }
-
-    poiRequestRef.current?.abort();
-    poiLayer.clearLayers();
-
-    if (!Object.values(activePoiCategories).some(Boolean)) {
-      setPoiStatus("");
-      return;
-    }
-
-    if (map.getZoom() < poiMinZoom) {
-      setPoiStatus("");
-      return;
-    }
-
-    const bounds = map.getBounds();
-    const controller = new AbortController();
-    poiRequestRef.current = controller;
-    const selectedCategories = Object.entries(activePoiCategories)
-      .filter(([, isEnabled]) => isEnabled)
-      .map(([category]) => category);
-    const beforeCount = loadedPoisRef.current.size;
-    let loadedCategories = 0;
-    let failedCategories = 0;
-    let foundPois = 0;
-
-    setIsPoiLoading(true);
-    setPoiStatus("Se incarca punctele de interes...");
-
-    try {
-      for (const categoryName of selectedCategories) {
-        const cacheKey = poiCacheKey(bounds, categoryName);
-        const cachedPois = poiCacheRef.current.get(cacheKey);
-
-        if (cachedPois) {
-          mergePois(cachedPois);
-          foundPois += cachedPois.length;
-          loadedCategories += 1;
-          renderLoadedPois();
-          setPoiStatus("Se incarca punctele de interes...");
-          continue;
-        }
-
-        try {
-          let response = null;
-
-          for (const endpoint of overpassEndpoints) {
-            response = await fetch(endpoint, {
-              method: "POST",
-              headers: {
-                "Content-Type": "text/plain;charset=UTF-8"
-              },
-              body: buildCategoryOverpassQuery(bounds, categoryName),
-              signal: controller.signal
-            });
-
-            if (response.ok || response.status !== 429) {
-              break;
-            }
-          }
-
-          if (!response?.ok) {
-            throw new Error(response?.status === 429 ? "rate_limited" : "overpass_failed");
-          }
-
-          const payload = await response.json();
-          const pois = payload.elements
-            .map((element) => {
-              const category = poiCategoryForTags(element.tags);
-              const latitude = element.lat ?? element.center?.lat;
-              const longitude = element.lon ?? element.center?.lon;
-
-              if (!category || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-                return null;
-              }
-
-              return {
-                category,
-                id: element.id,
-                latitude,
-                longitude,
-                name: element.tags?.name || poiCategories[category].label
-              };
-            })
-            .filter((poi) => poi?.category === categoryName)
-            .slice(0, 120);
-
-          poiCacheRef.current.set(cacheKey, pois);
-          mergePois(pois);
-          foundPois += pois.length;
-          loadedCategories += 1;
-          renderLoadedPois();
-          setPoiStatus("Se incarca punctele de interes...");
-        } catch (error) {
-          if (error.name === "AbortError") {
-            throw error;
-          }
-          failedCategories += 1;
-          setPoiStatus("Se incarca punctele de interes...");
-        }
-      }
-
-      renderLoadedPois();
-      setPoiStatus("");
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        setPoiStatus("");
-      }
-    } finally {
-      setIsPoiLoading(false);
-    }
-  }
 
   function togglePoiCategory(category) {
     setActivePoiCategories((current) => ({
       ...current,
       [category]: !current[category]
     }));
-    setPoiStatus("");
   }
 
   return (
@@ -598,10 +473,7 @@ function poiKey(poi) {
             {config.label}
           </button>
         ))}
-        <button className="poi-load-button" type="button" onClick={loadPois} disabled={isPoiLoading}>
-          {isPoiLoading ? "Se incarca..." : "Incarca puncte"}
-        </button>
-        {poiStatus ? <p>{poiStatus}</p> : null}
+        {isPoiLoading ? <p>Se incarca punctele de interes...</p> : null}
       </div>
       <div className="marketplace-map" ref={mapElementRef} />
     </section>
