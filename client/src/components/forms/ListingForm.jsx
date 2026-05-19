@@ -1,6 +1,8 @@
 import { Save } from "lucide-react";
 import {
   buildingConditionOptions,
+  centralHeatingTypeOptions,
+  compartmentalizationOptions,
   currencyOptions,
   energyClassOptions,
   furnishingOptions,
@@ -10,6 +12,7 @@ import {
   transactionTypeOptions
 } from "../../constants/formOptions.js";
 import { countyOptions, romanianLocations } from "../../constants/romaniaLocations.js";
+import { CityAutocomplete } from "../ui/CityAutocomplete.jsx";
 import { LocationPicker } from "./LocationPicker.jsx";
 
 export const emptyListingForm = {
@@ -28,12 +31,17 @@ export const emptyListingForm = {
   rooms: "",
   bathrooms: "",
   floor: "",
+  totalFloors: "",
   yearBuilt: "",
   balcony: "",
+  hasAirConditioning: "",
+  hasElevator: "",
+  petFriendly: "",
+  compartmentalization: "",
   parking: "",
   furnished: "",
   heatingType: "",
-  hasOwnCentralHeating: "",
+  centralHeatingType: "",
   buildingCondition: "",
   energyClass: ""
 };
@@ -55,15 +63,18 @@ export function listingToForm(listing) {
     rooms: listing.rooms ?? "",
     bathrooms: listing.bathrooms ?? "",
     floor: listing.floor ?? "",
+    totalFloors: listing.totalFloors ?? "",
     yearBuilt: listing.yearBuilt ?? "",
     balcony: listing.balcony === null || listing.balcony === undefined ? "" : String(listing.balcony),
+    hasAirConditioning:
+      listing.hasAirConditioning === null || listing.hasAirConditioning === undefined ? "" : String(listing.hasAirConditioning),
+    hasElevator: listing.hasElevator === null || listing.hasElevator === undefined ? "" : String(listing.hasElevator),
+    petFriendly: listing.petFriendly === null || listing.petFriendly === undefined ? "" : String(listing.petFriendly),
+    compartmentalization: listing.compartmentalization ?? "",
     parking: listing.parking ?? "",
     furnished: listing.furnished ?? "",
     heatingType: listing.heatingType ?? "",
-    hasOwnCentralHeating:
-      listing.hasOwnCentralHeating === null || listing.hasOwnCentralHeating === undefined
-        ? ""
-        : String(listing.hasOwnCentralHeating),
+    centralHeatingType: listing.centralHeatingType ?? "",
     buildingCondition: listing.buildingCondition ?? "",
     energyClass: listing.energyClass ?? ""
   };
@@ -78,18 +89,60 @@ export function formToListingPayload(form) {
     surface: Number(form.surface)
   };
 
-  ["rooms", "bathrooms", "floor", "yearBuilt"].forEach((field) => {
+  ["rooms", "bathrooms", "floor", "totalFloors", "yearBuilt"].forEach((field) => {
     payload[field] = form[field] === "" ? null : Number(form[field]);
   });
 
-  ["balcony", "hasOwnCentralHeating"].forEach((field) => {
+  ["balcony", "hasAirConditioning", "hasElevator", "petFriendly"].forEach((field) => {
     payload[field] = form[field] === "" ? null : form[field] === "true";
   });
 
-  ["parking", "furnished", "heatingType", "buildingCondition", "energyClass"].forEach((field) => {
+  ["compartmentalization", "parking", "furnished", "heatingType", "centralHeatingType", "buildingCondition", "energyClass"].forEach((field) => {
     payload[field] = form[field] === "" ? null : form[field];
   });
 
+  if (payload.heatingType !== "CENTRAL") {
+    payload.centralHeatingType = null;
+  }
+
+  return payload;
+}
+
+export function formToListingQualityPayload(form, imageCount = 0) {
+  const payload = {
+    ...form,
+    imageCount
+  };
+
+  ["price", "latitude", "longitude", "surface", "rooms", "bathrooms", "floor", "totalFloors", "yearBuilt"].forEach((field) => {
+    payload[field] = form[field] === "" ? null : Number(form[field]);
+  });
+
+  ["balcony", "hasAirConditioning", "hasElevator", "petFriendly"].forEach((field) => {
+    payload[field] = form[field] === "" ? null : form[field] === "true";
+  });
+
+  ["compartmentalization", "parking", "furnished", "heatingType", "centralHeatingType", "buildingCondition", "energyClass"].forEach((field) => {
+    payload[field] = form[field] === "" ? null : form[field];
+  });
+
+  if (payload.heatingType !== "CENTRAL") {
+    payload.centralHeatingType = null;
+  }
+
+  ["title", "description", "city", "county", "address"].forEach((field) => {
+    payload[field] = form[field].trim() || null;
+  });
+
+  return payload;
+}
+
+export function formToListingDescriptionPayload(form) {
+  const payload = formToListingQualityPayload(form, 0);
+  delete payload.description;
+  delete payload.imageCount;
+  delete payload.latitude;
+  delete payload.longitude;
   return payload;
 }
 
@@ -103,6 +156,10 @@ export function ListingForm({ childrenBeforeSubmit, form, isSubmitting, onChange
 
     if (event.target.name === "county") {
       nextForm.city = "";
+    }
+
+    if (event.target.name === "heatingType" && nextValue !== "CENTRAL") {
+      nextForm.centralHeatingType = "";
     }
 
     onChange({
@@ -178,15 +235,16 @@ export function ListingForm({ childrenBeforeSubmit, form, isSubmitting, onChange
       </label>
 
       <label>
-        Oras / comuna
-        <select name="city" value={form.city} onChange={updateField} disabled={!form.county} required>
-          <option value="">{form.county ? "Alege localitatea" : "Alege judetul"}</option>
-          {availableCities.map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
+        Oras
+        <CityAutocomplete
+          name="city"
+          value={form.city}
+          onChange={updateField}
+          disabled={!form.county}
+          options={availableCities}
+          placeholder={form.county ? "Tasteaza orasul" : "Alege judetul"}
+          required
+        />
       </label>
 
       <label className="full-span">
@@ -238,6 +296,11 @@ export function ListingForm({ childrenBeforeSubmit, form, isSubmitting, onChange
       </label>
 
       <label>
+        Etaje imobil
+        <input name="totalFloors" type="number" min="1" value={form.totalFloors} onChange={updateField} />
+      </label>
+
+      <label>
         An constructie
         <input name="yearBuilt" type="number" min="1800" value={form.yearBuilt} onChange={updateField} />
       </label>
@@ -252,6 +315,18 @@ export function ListingForm({ childrenBeforeSubmit, form, isSubmitting, onChange
         <select name="furnished" value={form.furnished} onChange={updateField}>
           <option value="">Nespecificat</option>
           {furnishingOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Compartimentare
+        <select name="compartmentalization" value={form.compartmentalization} onChange={updateField}>
+          <option value="">Nespecificat</option>
+          {compartmentalizationOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -281,8 +356,26 @@ export function ListingForm({ childrenBeforeSubmit, form, isSubmitting, onChange
       </label>
 
       <label>
-        Centrala proprie
-        <select name="hasOwnCentralHeating" value={form.hasOwnCentralHeating} onChange={updateField}>
+        Aer conditionat
+        <select name="hasAirConditioning" value={form.hasAirConditioning} onChange={updateField}>
+          <option value="">Nespecificat</option>
+          <option value="true">Da</option>
+          <option value="false">Nu</option>
+        </select>
+      </label>
+
+      <label>
+        Lift
+        <select name="hasElevator" value={form.hasElevator} onChange={updateField}>
+          <option value="">Nespecificat</option>
+          <option value="true">Da</option>
+          <option value="false">Nu</option>
+        </select>
+      </label>
+
+      <label>
+        Pet friendly
+        <select name="petFriendly" value={form.petFriendly} onChange={updateField}>
           <option value="">Nespecificat</option>
           <option value="true">Da</option>
           <option value="false">Nu</option>
@@ -300,6 +393,20 @@ export function ListingForm({ childrenBeforeSubmit, form, isSubmitting, onChange
           ))}
         </select>
       </label>
+
+      {form.heatingType === "CENTRAL" ? (
+        <label>
+          Tip centrala
+          <select name="centralHeatingType" value={form.centralHeatingType} onChange={updateField}>
+            <option value="">Nespecificat</option>
+            {centralHeatingTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <label>
         Stare imobil

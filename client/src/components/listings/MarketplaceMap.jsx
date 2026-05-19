@@ -1,5 +1,6 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { Eraser, SquareDashedMousePointer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { apiOrigin } from "../../api/axiosClient.js";
 import { getPointsOfInterest } from "../../api/pointsOfInterestApi.js";
@@ -72,6 +73,29 @@ function isValidCoordinate(listing) {
 
 function listingLatLng(listing) {
   return L.latLng(listing.latitude, listing.longitude);
+}
+
+function pointInPolygon(latLng, polygonPath) {
+  const x = latLng.lng;
+  const y = latLng.lat;
+  let isInside = false;
+
+  for (let index = 0, previousIndex = polygonPath.length - 1; index < polygonPath.length; previousIndex = index++) {
+    const current = polygonPath[index];
+    const previous = polygonPath[previousIndex];
+    const currentY = current.lat;
+    const previousY = previous.lat;
+    const currentX = current.lng;
+    const previousX = previous.lng;
+    const crossesLatitude = currentY > y !== previousY > y;
+    const intersectX = ((previousX - currentX) * (y - currentY)) / (previousY - currentY) + currentX;
+
+    if (crossesLatitude && x < intersectX) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
 }
 
 function escapeHtml(value) {
@@ -195,6 +219,11 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  const selectedAreaLayerRef = useRef(null);
+  const selectedAreaBoundsRef = useRef(null);
+  const selectedAreaPathRef = useRef(null);
+  const drawingPathRef = useRef([]);
+  const drawingPreviewLayerRef = useRef(null);
   const poiLayerRef = useRef(null);
   const listingsRef = useRef(listings);
   const callbackRef = useRef(onVisibleListingIdsChange);
@@ -203,6 +232,8 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
   const poiLoadTimeoutRef = useRef(null);
   const loadedPoisRef = useRef(new Map());
   const [activePoiCategories, setActivePoiCategories] = useState(initialPoiCategories);
+  const [isDrawingArea, setIsDrawingArea] = useState(false);
+  const [selectedAreaCount, setSelectedAreaCount] = useState(null);
   const [isPoiLoading, setIsPoiLoading] = useState(false);
 
   useEffect(() => {
@@ -229,6 +260,8 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
 
     map.createPane("listingMarkers");
     map.getPane("listingMarkers").style.zIndex = 650;
+    map.createPane("selectedSearchArea");
+    map.getPane("selectedSearchArea").style.zIndex = 640;
     map.createPane("poiMarkers");
     map.getPane("poiMarkers").style.zIndex = 620;
 
@@ -252,18 +285,44 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
       return undefined;
     }
 
+    function selectedAreaListings() {
+      const selectedBounds = selectedAreaBoundsRef.current;
+      const selectedPath = selectedAreaPathRef.current;
+
+      if (!selectedBounds || !selectedPath?.length) {
+        return null;
+      }
+
+      return listingsRef.current
+        .filter(isValidCoordinate)
+        .filter((listing) => {
+          const latLng = listingLatLng(listing);
+          return selectedBounds.contains(latLng) && pointInPolygon(latLng, selectedPath);
+        });
+    }
+
     function updateVisibleListings() {
+      const selectedListings = selectedAreaListings();
+
+      if (selectedListings) {
+        setSelectedAreaCount(selectedListings.length);
+        callbackRef.current(selectedListings.map((listing) => listing.id));
+        return;
+      }
+
       const bounds = map.getBounds();
       const visibleIds = listingsRef.current
         .filter(isValidCoordinate)
         .filter((listing) => bounds.contains(listingLatLng(listing)))
         .map((listing) => listing.id);
+      setSelectedAreaCount(null);
       callbackRef.current(visibleIds);
     }
 
     function renderMarkers() {
       layer.clearLayers();
-      const clusters = clusterListings(map, listingsRef.current);
+      const selectedListings = selectedAreaListings();
+      const clusters = clusterListings(map, selectedListings ?? listingsRef.current);
 
       clusters.forEach((cluster) => {
         if (cluster.listings.length === 1) {
@@ -303,10 +362,12 @@ export function MarketplaceMap({ listings, onVisibleListingIdsChange }) {
     renderMarkers();
     map.on("moveend", updateVisibleListings);
     map.on("zoomend", renderMarkers);
+    map.on("searcharea:changed", renderMarkers);
 
     return () => {
       map.off("moveend", updateVisibleListings);
       map.off("zoomend", renderMarkers);
+      map.off("searcharea:changed", renderMarkers);
     };
   }, [listings]);
 
@@ -452,6 +513,149 @@ function poiKey(poi) {
   return `${poi.category}:${poi.id}`;
 }
 
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map) {
+      return undefined;
+    }
+
+    if (!isDrawingArea) {
+      map.dragging.enable();
+      map.getContainer().classList.remove("marketplace-map-drawing");
+      return undefined;
+    }
+
+    map.dragging.disable();
+    map.doubleClickZoom.disable();
+    map.getContainer().classList.add("marketplace-map-drawing");
+
+    function finishDrawing() {
+      drawingPathRef.current = [];
+      drawingPreviewLayerRef.current = null;
+      setIsDrawingArea(false);
+    }
+
+    function handleMouseDown(event) {
+      if (!isDrawingArea) {
+        return;
+      }
+
+      drawingPathRef.current = [event.latlng];
+
+      if (drawingPreviewLayerRef.current) {
+        drawingPreviewLayerRef.current.remove();
+      }
+
+      drawingPreviewLayerRef.current = L.polyline([event.latlng], {
+        color: "#0f4c5c",
+        dashArray: "6 5",
+        pane: "selectedSearchArea",
+        weight: 3
+      }).addTo(map);
+    }
+
+    function handleMouseMove(event) {
+      if (!drawingPathRef.current.length || !drawingPreviewLayerRef.current) {
+        return;
+      }
+
+      const lastPoint = drawingPathRef.current[drawingPathRef.current.length - 1];
+      const lastLayerPoint = map.latLngToLayerPoint(lastPoint);
+      const nextLayerPoint = map.latLngToLayerPoint(event.latlng);
+
+      if (lastLayerPoint.distanceTo(nextLayerPoint) < 8) {
+        return;
+      }
+
+      drawingPathRef.current = [...drawingPathRef.current, event.latlng];
+      drawingPreviewLayerRef.current.setLatLngs(drawingPathRef.current);
+    }
+
+    function handleMouseUp(event) {
+      if (!drawingPathRef.current.length || !drawingPreviewLayerRef.current) {
+        return;
+      }
+
+      const finalPath = [...drawingPathRef.current, event.latlng];
+
+      if (drawingPreviewLayerRef.current) {
+        drawingPreviewLayerRef.current.remove();
+      }
+
+      if (finalPath.length < 3) {
+        finishDrawing();
+        return;
+      }
+
+      if (selectedAreaLayerRef.current) {
+        selectedAreaLayerRef.current.remove();
+      }
+
+      selectedAreaLayerRef.current = L.polygon(finalPath, {
+        color: "#0f4c5c",
+        fillColor: "#0f4c5c",
+        fillOpacity: 0.16,
+        pane: "selectedSearchArea",
+        weight: 2
+      }).addTo(map);
+      const selectedAreaBounds = selectedAreaLayerRef.current.getBounds();
+      selectedAreaBoundsRef.current = selectedAreaBounds;
+      selectedAreaPathRef.current = finalPath;
+      map.fire("searcharea:changed");
+
+      const eligibleListings = listingsRef.current
+        .filter(isValidCoordinate)
+        .filter((listing) => {
+          const latLng = listingLatLng(listing);
+          return selectedAreaBounds.contains(latLng) && pointInPolygon(latLng, finalPath);
+        });
+
+      window.setTimeout(() => {
+        if (!mapRef.current) {
+          return;
+        }
+
+        if (eligibleListings.length === 1) {
+          mapRef.current.setView(listingLatLng(eligibleListings[0]), singleListingZoom, {
+            animate: true
+          });
+          return;
+        }
+
+        if (eligibleListings.length > 1) {
+          mapRef.current.fitBounds(L.latLngBounds(eligibleListings.map(listingLatLng)), {
+            animate: true,
+            maxZoom: 15,
+            padding: [72, 72]
+          });
+          return;
+        }
+
+        mapRef.current.fitBounds(selectedAreaBounds,
+        {
+          animate: true,
+          maxZoom: 15,
+          padding: [72, 72]
+        });
+      }, 0);
+      finishDrawing();
+    }
+
+    map.on("mousedown", handleMouseDown);
+    map.on("mousemove", handleMouseMove);
+    map.on("mouseup", handleMouseUp);
+
+    return () => {
+      map.off("mousedown", handleMouseDown);
+      map.off("mousemove", handleMouseMove);
+      map.off("mouseup", handleMouseUp);
+      map.dragging.enable();
+      map.doubleClickZoom.enable();
+      map.getContainer().classList.remove("marketplace-map-drawing");
+    };
+  }, [isDrawingArea]);
+
   function togglePoiCategory(category) {
     setActivePoiCategories((current) => ({
       ...current,
@@ -459,8 +663,56 @@ function poiKey(poi) {
     }));
   }
 
+  function startAreaDrawing() {
+    setIsDrawingArea(true);
+  }
+
+  function clearSelectedArea() {
+    const map = mapRef.current;
+
+    if (selectedAreaLayerRef.current) {
+      selectedAreaLayerRef.current.remove();
+      selectedAreaLayerRef.current = null;
+    }
+
+    if (drawingPreviewLayerRef.current) {
+      drawingPreviewLayerRef.current.remove();
+      drawingPreviewLayerRef.current = null;
+    }
+
+    selectedAreaBoundsRef.current = null;
+    selectedAreaPathRef.current = null;
+    drawingPathRef.current = [];
+    setIsDrawingArea(false);
+    setSelectedAreaCount(null);
+
+    if (map) {
+      map.fire("searcharea:changed");
+    }
+  }
+
   return (
     <section className="marketplace-map-panel" aria-label="Harta anunturilor">
+      <div className="map-search-controls" aria-label="Filtrare pe harta">
+        <button
+          className={isDrawingArea ? "active" : ""}
+          type="button"
+          onClick={startAreaDrawing}
+          disabled={isDrawingArea}
+        >
+          <SquareDashedMousePointer size={17} aria-hidden="true" />
+          {isDrawingArea ? "Traseaza zona" : "Deseneaza zona"}
+        </button>
+        {selectedAreaCount !== null ? (
+          <>
+            <span>{selectedAreaCount} anunturi in zona selectata</span>
+            <button type="button" onClick={clearSelectedArea}>
+              <Eraser size={16} aria-hidden="true" />
+              Sterge zona
+            </button>
+          </>
+        ) : null}
+      </div>
       <div className="poi-controls" aria-label="Puncte de interes">
         {Object.entries(poiCategories).map(([category, config]) => (
           <button

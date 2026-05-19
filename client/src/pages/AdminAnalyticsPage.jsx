@@ -4,8 +4,10 @@ import { Link } from "react-router-dom";
 import { getAdminAnalytics } from "../api/adminApi.js";
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { AdminAnalyticsDashboard } from "../components/admin/AdminAnalyticsDashboard.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 export function AdminAnalyticsPage() {
+  const { showToast } = useToast();
   const [analytics, setAnalytics] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -28,6 +30,12 @@ export function AdminAnalyticsPage() {
     loadAnalytics();
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
+
   return (
     <section className="dashboard-page">
       <div className="dashboard-header">
@@ -46,7 +54,6 @@ export function AdminAnalyticsPage() {
         </div>
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
       {isLoading ? <div className="page-status">Se incarca statisticile...</div> : null}
       {!isLoading && analytics ? <AdminAnalyticsDashboard analytics={analytics} /> : null}
     </section>

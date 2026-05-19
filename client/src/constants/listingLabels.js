@@ -11,6 +11,7 @@ export const transactionTypeLabels = {
 };
 
 export const sortLabels = {
+  relevance: "Cele mai relevante",
   newest: "Cele mai noi",
   price_asc: "Pret crescator",
   price_desc: "Pret descrescator"
@@ -22,6 +23,14 @@ export const furnishingLabels = {
   FURNISHED: "Mobilat complet"
 };
 
+export const compartmentalizationLabels = {
+  DETACHED: "Decomandat",
+  SEMI_DETACHED: "Semidecomandat",
+  NON_DETACHED: "Nedecomandat",
+  CIRCULAR: "Circular",
+  OPEN_SPACE: "Open space"
+};
+
 export const parkingLabels = {
   NONE: "Fara parcare",
   PARKING_SPOT: "Loc de parcare",
@@ -29,11 +38,17 @@ export const parkingLabels = {
 };
 
 export const heatingTypeLabels = {
-  OWN_CENTRAL: "Centrala proprie",
+  CENTRAL: "Centrala termica",
   DISTRICT: "Termoficare",
   ELECTRIC: "Electric",
-  GAS: "Gaz",
+  GAS: "Gaz / sobe",
   OTHER: "Altul"
+};
+
+export const centralHeatingTypeLabels = {
+  INDIVIDUAL: "Centrala proprie / individuala",
+  BUILDING: "Centrala de bloc",
+  RESIDENTIAL_COMPLEX: "Centrala de ansamblu"
 };
 
 export const buildingConditionLabels = {

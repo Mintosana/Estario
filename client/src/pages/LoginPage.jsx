@@ -1,12 +1,14 @@
 import { LogIn } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { PasswordField } from "../components/forms/PasswordField.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -14,6 +16,12 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo = location.state?.from?.pathname ?? "/";
+
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
 
   function updateField(event) {
     setForm((current) => ({
@@ -46,7 +54,6 @@ export function LoginPage() {
           <input name="email" type="email" value={form.email} onChange={updateField} required />
         </label>
         <PasswordField label="Parola" name="password" value={form.password} onChange={updateField} required />
-        {error ? <p className="form-error">{error}</p> : null}
         <button className="primary-button" type="submit" disabled={isSubmitting}>
           <LogIn size={18} aria-hidden="true" />
           {isSubmitting ? "Se autentifica..." : "Autentifica-te"}

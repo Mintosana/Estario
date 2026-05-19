@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../utils/AppError.js";
+import { createNotification } from "./notification.service.js";
 
 async function findListingOwnerOrThrow(listingId) {
   const listing = await prisma.listing.findUnique({
@@ -7,7 +8,8 @@ async function findListingOwnerOrThrow(listingId) {
     select: {
       id: true,
       ownerId: true,
-      status: true
+      status: true,
+      title: true
     }
   });
 
@@ -149,6 +151,14 @@ export async function createMessage(listingId, data, user) {
   await prisma.conversation.update({
     where: { id: conversation.id },
     data: { updatedAt: new Date() }
+  });
+
+  await createNotification({
+    body: `${user.name} ti-a trimis un mesaj pentru anuntul "${listing.title}".`,
+    targetUrl: `/messages/${conversation.id}`,
+    title: "Mesaj nou",
+    type: "NEW_MESSAGE",
+    userId: listing.ownerId
   });
 
   return message;
@@ -312,6 +322,16 @@ export async function addConversationMessage(conversationId, data, user) {
   await prisma.conversation.update({
     where: { id: conversation.id },
     data: { updatedAt: new Date() }
+  });
+
+  const recipientId = conversation.ownerId === user.id ? conversation.buyerId : conversation.ownerId;
+
+  await createNotification({
+    body: `${user.name} ti-a raspuns in conversatia pentru "${conversation.listing.title}".`,
+    targetUrl: `/messages/${conversation.id}`,
+    title: "Raspuns nou in conversatie",
+    type: "NEW_MESSAGE",
+    userId: recipientId
   });
 
   return findConversationOrThrow(conversation.id, user);

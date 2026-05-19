@@ -6,6 +6,8 @@ import { getListing } from "../api/listingsApi.js";
 import { ListingImage } from "../components/listings/ListingImage.jsx";
 import {
   buildingConditionLabels,
+  centralHeatingTypeLabels,
+  compartmentalizationLabels,
   energyClassLabels,
   furnishingLabels,
   heatingTypeLabels,
@@ -14,18 +16,12 @@ import {
   transactionTypeLabels
 } from "../constants/listingLabels.js";
 import { useCompare } from "../context/CompareContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 import { formatArea, formatPrice, formatPricePerSquareMeter } from "../utils/formatters.js";
+import { formatFloor } from "../utils/listingDisplay.js";
 
 function valueOrDash(value) {
   return value ?? "-";
-}
-
-function booleanLabel(value) {
-  if (value === null || value === undefined) {
-    return "-";
-  }
-
-  return value ? "Da" : "Nu";
 }
 
 function comparisonRows(listing) {
@@ -35,16 +31,20 @@ function comparisonRows(listing) {
     ["Suprafata", formatArea(listing.surface)],
     ["Camere", valueOrDash(listing.rooms)],
     ["Bai", valueOrDash(listing.bathrooms)],
-    ["Etaj", valueOrDash(listing.floor)],
+    ["Etaj", formatFloor(listing.floor, listing.totalFloors)],
     ["An constructie", valueOrDash(listing.yearBuilt)],
     ["Localizare", `${listing.city}, ${listing.county}`],
     ["Tip proprietate", propertyTypeLabels[listing.propertyType]],
     ["Tip anunt", transactionTypeLabels[listing.transactionType]],
+    ["Compartimentare", listing.compartmentalization ? compartmentalizationLabels[listing.compartmentalization] : "-"],
     ["Mobilare", listing.furnished ? furnishingLabels[listing.furnished] : "-"],
     ["Parcare", listing.parking ? parkingLabels[listing.parking] : "-"],
-    ["Balcon", booleanLabel(listing.balcony)],
-    ["Centrala proprie", booleanLabel(listing.hasOwnCentralHeating)],
+    ["Balcon", listing.balcony === null || listing.balcony === undefined ? "-" : listing.balcony ? "Da" : "Nu"],
+    ["Aer conditionat", listing.hasAirConditioning === null || listing.hasAirConditioning === undefined ? "-" : listing.hasAirConditioning ? "Da" : "Nu"],
+    ["Lift", listing.hasElevator === null || listing.hasElevator === undefined ? "-" : listing.hasElevator ? "Da" : "Nu"],
+    ["Pet friendly", listing.petFriendly === null || listing.petFriendly === undefined ? "-" : listing.petFriendly ? "Da" : "Nu"],
     ["Tip incalzire", listing.heatingType ? heatingTypeLabels[listing.heatingType] : "-"],
+    ["Tip centrala", listing.heatingType === "CENTRAL" && listing.centralHeatingType ? centralHeatingTypeLabels[listing.centralHeatingType] : "-"],
     ["Stare imobil", listing.buildingCondition ? buildingConditionLabels[listing.buildingCondition] : "-"],
     ["Clasa energetica", listing.energyClass ? energyClassLabels[listing.energyClass] : "-"]
   ];
@@ -53,6 +53,7 @@ function comparisonRows(listing) {
 export function ComparePage() {
   const navigate = useNavigate();
   const { clearCompare, removeListing, selectedIds } = useCompare();
+  const { showToast } = useToast();
   const [listings, setListings] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(Boolean(selectedIds.length));
@@ -101,6 +102,12 @@ export function ComparePage() {
     };
   }, [selectedIds]);
 
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
+
   const rowLabels = useMemo(() => comparisonRows(listings[0] ?? {}).map(([label]) => label), [listings]);
 
   function discardComparison() {
@@ -126,7 +133,6 @@ export function ComparePage() {
         ) : null}
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
       {isLoading ? <div className="page-status">Se incarca anunturile pentru comparare...</div> : null}
 
       {!isLoading && !selectedIds.length ? (

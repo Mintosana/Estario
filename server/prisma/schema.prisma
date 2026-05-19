@@ -41,6 +41,14 @@ enum FurnishingStatus {
   FURNISHED
 }
 
+enum CompartmentalizationType {
+  DETACHED
+  SEMI_DETACHED
+  NON_DETACHED
+  CIRCULAR
+  OPEN_SPACE
+}
+
 enum ParkingType {
   NONE
   PARKING_SPOT
@@ -48,11 +56,17 @@ enum ParkingType {
 }
 
 enum HeatingType {
-  OWN_CENTRAL
+  CENTRAL
   DISTRICT
   ELECTRIC
   GAS
   OTHER
+}
+
+enum CentralHeatingType {
+  INDIVIDUAL
+  BUILDING
+  RESIDENTIAL_COMPLEX
 }
 
 enum BuildingCondition {
@@ -71,6 +85,12 @@ enum EnergyClass {
   UNKNOWN
 }
 
+enum NotificationType {
+  LISTING_APPROVED
+  LISTING_REJECTED
+  NEW_MESSAGE
+}
+
 model User {
   id           String     @id @default(cuid())
   name         String
@@ -79,6 +99,7 @@ model User {
   avatarUrl    String?
   phone        String?
   bio          String?
+  promotionCredits Int       @default(0)
   role         Role       @default(USER)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -88,8 +109,25 @@ model User {
   buyerConversations Conversation[] @relation("BuyerConversations")
   ownerConversations Conversation[] @relation("OwnerConversations")
   sentMessages Message[] @relation("SentMessages")
+  notifications Notification[]
 
   @@map("users")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  targetUrl String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
 }
 
 model Listing {
@@ -110,17 +148,26 @@ model Listing {
   rooms           Int?
   bathrooms       Int?
   floor           Int?
+  totalFloors     Int?
   yearBuilt       Int?
   balcony         Boolean?
+  hasAirConditioning Boolean?
+  hasElevator     Boolean?
+  petFriendly     Boolean?
+  compartmentalization CompartmentalizationType?
   parking         ParkingType?
   furnished       FurnishingStatus?
   heatingType     HeatingType?
-  hasOwnCentralHeating Boolean?
+  centralHeatingType CentralHeatingType?
   buildingCondition BuildingCondition?
   energyClass     EnergyClass?
   status          ListingStatus   @default(PENDING)
   rejectionReason String?
   viewCount       Int             @default(0)
+  sponsoredAt     DateTime?
+  sponsoredUntil  DateTime?
+  sponsoredViewBaseline Int?
+  sponsoredPreviousViewEstimate Int?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   owner           User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -134,7 +181,12 @@ model Listing {
   @@index([county])
   @@index([propertyType])
   @@index([transactionType])
+  @@index([compartmentalization])
+  @@index([hasAirConditioning])
+  @@index([hasElevator])
+  @@index([petFriendly])
   @@index([price])
+  @@index([sponsoredUntil])
   @@index([createdAt])
   @@map("listings")
 }
@@ -229,14 +281,20 @@ model SavedSearch {
   county          String?
   propertyType    PropertyType?
   transactionType TransactionType?
+  currency        Currency?
   minPrice        Decimal?         @db.Decimal(12, 2)
   maxPrice        Decimal?         @db.Decimal(12, 2)
   rooms           Int?
   balcony         Boolean?
+  hasAirConditioning Boolean?
+  hasElevator     Boolean?
+  petFriendly     Boolean?
+  compartmentalization CompartmentalizationType?
   parking         ParkingType?
   furnished       FurnishingStatus?
-  hasOwnCentralHeating Boolean?
-  sort            String           @default("newest")
+  heatingType      HeatingType?
+  centralHeatingType CentralHeatingType?
+  sort            String           @default("relevance")
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)

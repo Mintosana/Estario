@@ -1,5 +1,7 @@
 import {
   buildingConditionLabels,
+  centralHeatingTypeLabels,
+  compartmentalizationLabels,
   energyClassLabels,
   furnishingLabels,
   heatingTypeLabels,
@@ -28,12 +30,22 @@ export const furnishingOptions = Object.entries(furnishingLabels).map(([value, l
   label
 }));
 
+export const compartmentalizationOptions = Object.entries(compartmentalizationLabels).map(([value, label]) => ({
+  value,
+  label
+}));
+
 export const parkingOptions = Object.entries(parkingLabels).map(([value, label]) => ({
   value,
   label
 }));
 
 export const heatingTypeOptions = Object.entries(heatingTypeLabels).map(([value, label]) => ({
+  value,
+  label
+}));
+
+export const centralHeatingTypeOptions = Object.entries(centralHeatingTypeLabels).map(([value, label]) => ({
   value,
   label
 }));

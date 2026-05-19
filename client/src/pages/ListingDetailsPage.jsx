@@ -1,4 +1,19 @@
-import { Bus, CheckCircle2, Heart, Hospital, Mail, MapPin, School, ShoppingBag, Train, UserCircle, XCircle } from "lucide-react";
+import {
+  Bus,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Hospital,
+  Mail,
+  MapPin,
+  School,
+  ShoppingBag,
+  Train,
+  UserCircle,
+  X,
+  XCircle
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { approveListing, rejectListing } from "../api/adminApi.js";
@@ -12,6 +27,8 @@ import { ListingMap } from "../components/listings/ListingMap.jsx";
 import { ListingImage } from "../components/listings/ListingImage.jsx";
 import {
   buildingConditionLabels,
+  centralHeatingTypeLabels,
+  compartmentalizationLabels,
   energyClassLabels,
   furnishingLabels,
   heatingTypeLabels,
@@ -20,7 +37,9 @@ import {
   transactionTypeLabels
 } from "../constants/listingLabels.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 import { formatArea, formatDistance, formatPrice, formatPricePerSquareMeter } from "../utils/formatters.js";
+import { formatFloor } from "../utils/listingDisplay.js";
 
 const initialMessage = {
   senderName: "",
@@ -41,12 +60,12 @@ export function ListingDetailsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isAuthenticated, user } = useAuth();
+  const { showToast } = useToast();
   const [listing, setListing] = useState(null);
   const [selectedImage, setSelectedImage] = useState("");
   const [favoriteIds, setFavoriteIds] = useState(new Set());
   const [messageForm, setMessageForm] = useState(initialMessage);
   const [error, setError] = useState("");
-  const [messageStatus, setMessageStatus] = useState("");
   const [moderationStatus, setModerationStatus] = useState("");
   const [nearbyPlaces, setNearbyPlaces] = useState([]);
   const [nearbyStatus, setNearbyStatus] = useState("");
@@ -55,6 +74,8 @@ export function ListingDetailsPage() {
   const [isModerating, setIsModerating] = useState(false);
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const [isMessageSubmitting, setIsMessageSubmitting] = useState(false);
+  const [lightboxImageIndex, setLightboxImageIndex] = useState(null);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
 
   const isFavorite = favoriteIds.has(id);
   const images = useMemo(() => listing?.images ?? [], [listing]);
@@ -103,6 +124,12 @@ export function ListingDetailsPage() {
       isMounted = false;
     };
   }, [id, isAuthenticated, user]);
+
+  useEffect(() => {
+    if (error && listing) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, listing, showToast]);
 
   useEffect(() => {
     if (!listing?.latitude || !listing?.longitude) {
@@ -170,7 +197,6 @@ export function ListingDetailsPage() {
 
   async function submitMessage(event) {
     event.preventDefault();
-    setMessageStatus("");
     setError("");
 
     if (!isAuthenticated) {
@@ -182,7 +208,7 @@ export function ListingDetailsPage() {
 
     try {
       await createMessage(id, messageForm);
-      setMessageStatus("Mesajul a fost trimis catre proprietar.");
+      showToast({ message: "Mesajul a fost trimis catre proprietar.", type: "success" });
       setMessageForm((current) => ({ ...current, message: "" }));
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
@@ -204,6 +230,7 @@ export function ListingDetailsPage() {
       const response = await approveListing(listing.id);
       setListing(response.data);
       setModerationStatus("Anuntul a fost aprobat si este acum public.");
+      showToast({ message: "Anuntul a fost aprobat si este acum public.", type: "success" });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -232,12 +259,90 @@ export function ListingDetailsPage() {
       setListing(response.data);
       setRejectReason("");
       setModerationStatus("Anuntul a fost respins. Proprietarul il poate edita si retrimite spre aprobare.");
+      showToast({
+        message: "Anuntul a fost respins. Proprietarul il poate edita si retrimite spre aprobare.",
+        type: "success"
+      });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
       setIsModerating(false);
     }
   }
+
+  const selectedImageUrl = selectedImage ? `${apiOrigin}${selectedImage}` : "";
+  const selectedImageIndex = Math.max(
+    0,
+    images.findIndex((image) => image.url === selectedImage)
+  );
+  const lightboxImage = lightboxImageIndex !== null ? images[lightboxImageIndex] : null;
+  const lightboxImageUrl = lightboxImage ? `${apiOrigin}${lightboxImage.url}` : "";
+
+  function openLightbox(index = selectedImageIndex) {
+    if (!images.length) {
+      return;
+    }
+
+    setLightboxImageIndex(index >= 0 ? index : 0);
+    setLightboxZoom(1);
+  }
+
+  function closeLightbox() {
+    setLightboxImageIndex(null);
+    setLightboxZoom(1);
+  }
+
+  function showPreviousLightboxImage() {
+    setLightboxImageIndex((current) => {
+      if (current === null || !images.length) {
+        return current;
+      }
+
+      return current === 0 ? images.length - 1 : current - 1;
+    });
+    setLightboxZoom(1);
+  }
+
+  function showNextLightboxImage() {
+    setLightboxImageIndex((current) => {
+      if (current === null || !images.length) {
+        return current;
+      }
+
+      return current === images.length - 1 ? 0 : current + 1;
+    });
+    setLightboxZoom(1);
+  }
+
+  function zoomLightboxImage(delta) {
+    setLightboxZoom((current) => Math.min(3, Math.max(1, Number((current + delta).toFixed(1)))));
+  }
+
+  useEffect(() => {
+    if (lightboxImageIndex === null) {
+      return undefined;
+    }
+
+    function handleLightboxKeydown(event) {
+      if (event.key === "Escape") {
+        closeLightbox();
+      }
+
+      if (event.key === "ArrowLeft") {
+        showPreviousLightboxImage();
+      }
+
+      if (event.key === "ArrowRight") {
+        showNextLightboxImage();
+      }
+    }
+
+    document.addEventListener("keydown", handleLightboxKeydown);
+
+    return () => {
+      document.removeEventListener("keydown", handleLightboxKeydown);
+    };
+  }, [lightboxImageIndex, images.length]);
 
   if (isLoading) {
     return <div className="page-status">Se incarca anuntul...</div>;
@@ -252,8 +357,6 @@ export function ListingDetailsPage() {
     );
   }
 
-  const selectedImageUrl = selectedImage ? `${apiOrigin}${selectedImage}` : "";
-
   return (
     <section className="details-page">
       <Link className="back-link" to="/">
@@ -263,12 +366,12 @@ export function ListingDetailsPage() {
       <div className="details-layout">
         <div className="details-main">
           <div className="gallery-panel">
-            <div className="gallery-main">
+            <button className="gallery-main" type="button" onClick={() => openLightbox()} aria-label="Mareste fotografia">
               <ListingImage src={selectedImageUrl} alt={listing.title} />
-            </div>
+            </button>
             {images.length > 1 ? (
               <div className="gallery-thumbnails">
-                {images.map((image) => (
+                {images.map((image, index) => (
                   <button
                     className={image.url === selectedImage ? "active" : ""}
                     key={image.id}
@@ -281,6 +384,54 @@ export function ListingDetailsPage() {
               </div>
             ) : null}
           </div>
+
+          {lightboxImage ? (
+            <div className="image-lightbox" role="dialog" aria-modal="true" aria-label="Fotografie anunt">
+              <button className="image-lightbox-backdrop" type="button" onClick={closeLightbox} aria-label="Inchide fotografia" />
+              <button className="image-lightbox-close" type="button" onClick={closeLightbox} aria-label="Inchide fotografia">
+                <X size={24} aria-hidden="true" />
+              </button>
+              <div className="image-lightbox-content">
+                {images.length > 1 ? (
+                  <button
+                    className="image-lightbox-arrow image-lightbox-arrow-left"
+                    type="button"
+                    onClick={showPreviousLightboxImage}
+                    aria-label="Fotografia anterioara"
+                  >
+                    <ChevronLeft size={32} aria-hidden="true" />
+                  </button>
+                ) : null}
+                <div className="image-lightbox-scroll">
+                  <img src={lightboxImageUrl} alt={listing.title} style={{ transform: `scale(${lightboxZoom})` }} />
+                </div>
+                {images.length > 1 ? (
+                  <button
+                    className="image-lightbox-arrow image-lightbox-arrow-right"
+                    type="button"
+                    onClick={showNextLightboxImage}
+                    aria-label="Fotografia urmatoare"
+                  >
+                    <ChevronRight size={32} aria-hidden="true" />
+                  </button>
+                ) : null}
+                {images.length > 1 ? (
+                  <span className="image-lightbox-count">
+                    {lightboxImageIndex + 1} / {images.length}
+                  </span>
+                ) : null}
+                <div className="image-lightbox-zoom">
+                  <button type="button" onClick={() => zoomLightboxImage(-0.25)} disabled={lightboxZoom <= 1}>
+                    -
+                  </button>
+                  <span>{Math.round(lightboxZoom * 100)}%</span>
+                  <button type="button" onClick={() => zoomLightboxImage(0.25)} disabled={lightboxZoom >= 3}>
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <section className="content-panel">
             <div className="details-heading">
@@ -331,7 +482,7 @@ export function ListingDetailsPage() {
               </div>
               <div>
                 <dt>Etaj</dt>
-                <dd>{listing.floor ?? "-"}</dd>
+                <dd>{formatFloor(listing.floor, listing.totalFloors)}</dd>
               </div>
               <div>
                 <dt>An constructie</dt>
@@ -347,6 +498,10 @@ export function ListingDetailsPage() {
             <h2>Dotari si caracteristici</h2>
             <dl className="details-facts">
               <div>
+                <dt>Compartimentare</dt>
+                <dd>{listing.compartmentalization ? compartmentalizationLabels[listing.compartmentalization] : "-"}</dd>
+              </div>
+              <div>
                 <dt>Mobilare</dt>
                 <dd>{listing.furnished ? furnishingLabels[listing.furnished] : "-"}</dd>
               </div>
@@ -359,19 +514,33 @@ export function ListingDetailsPage() {
                 <dd>{listing.balcony === null || listing.balcony === undefined ? "-" : listing.balcony ? "Da" : "Nu"}</dd>
               </div>
               <div>
-                <dt>Centrala proprie</dt>
+                <dt>Aer conditionat</dt>
                 <dd>
-                  {listing.hasOwnCentralHeating === null || listing.hasOwnCentralHeating === undefined
+                  {listing.hasAirConditioning === null || listing.hasAirConditioning === undefined
                     ? "-"
-                    : listing.hasOwnCentralHeating
+                    : listing.hasAirConditioning
                       ? "Da"
                       : "Nu"}
                 </dd>
               </div>
               <div>
+                <dt>Lift</dt>
+                <dd>{listing.hasElevator === null || listing.hasElevator === undefined ? "-" : listing.hasElevator ? "Da" : "Nu"}</dd>
+              </div>
+              <div>
+                <dt>Pet friendly</dt>
+                <dd>{listing.petFriendly === null || listing.petFriendly === undefined ? "-" : listing.petFriendly ? "Da" : "Nu"}</dd>
+              </div>
+              <div>
                 <dt>Tip incalzire</dt>
                 <dd>{listing.heatingType ? heatingTypeLabels[listing.heatingType] : "-"}</dd>
               </div>
+              {listing.heatingType === "CENTRAL" ? (
+                <div>
+                  <dt>Tip centrala</dt>
+                  <dd>{listing.centralHeatingType ? centralHeatingTypeLabels[listing.centralHeatingType] : "-"}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Stare imobil</dt>
                 <dd>{listing.buildingCondition ? buildingConditionLabels[listing.buildingCondition] : "-"}</dd>
@@ -438,7 +607,6 @@ export function ListingDetailsPage() {
                 <XCircle size={18} aria-hidden="true" />
                 Respinge anuntul
               </button>
-              {moderationStatus ? <p className="form-success">{moderationStatus}</p> : null}
             </section>
           ) : null}
 
@@ -452,10 +620,6 @@ export function ListingDetailsPage() {
             <p className="owner-notice">
               Motiv respingere: {listing.rejectionReason || "Motiv necompletat."}
             </p>
-          ) : null}
-
-          {isAdmin && listing.status === "APPROVED" && moderationStatus ? (
-            <p className="form-success">{moderationStatus}</p>
           ) : null}
 
           {isAuthenticated ? (
@@ -514,8 +678,6 @@ export function ListingDetailsPage() {
                         required
                       />
                     </label>
-                    {error ? <p className="form-error">{error}</p> : null}
-                    {messageStatus ? <p className="form-success">{messageStatus}</p> : null}
                     <button className="primary-button" type="submit" disabled={isMessageSubmitting}>
                       <Mail size={18} aria-hidden="true" />
                       {isMessageSubmitting ? "Se trimite..." : "Trimite mesaj"}

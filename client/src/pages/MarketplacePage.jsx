@@ -1,13 +1,18 @@
-import { Bookmark, Search, Sparkles, Trash2 } from "lucide-react";
+import { Bookmark, Search, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { getListings, interpretListingSearch } from "../api/listingsApi.js";
 import { createSavedSearch, deleteSavedSearch, getSavedSearches } from "../api/savedSearchesApi.js";
 import { ListingCard } from "../components/listings/ListingCard.jsx";
 import { MarketplaceMap } from "../components/listings/MarketplaceMap.jsx";
+import { CityAutocomplete } from "../components/ui/CityAutocomplete.jsx";
 import { Pagination } from "../components/ui/Pagination.jsx";
+import { currencyOptions } from "../constants/formOptions.js";
 import {
   furnishingLabels,
+  centralHeatingTypeLabels,
+  compartmentalizationLabels,
+  heatingTypeLabels,
   parkingLabels,
   propertyTypeLabels,
   sortLabels,
@@ -15,6 +20,7 @@ import {
 } from "../constants/listingLabels.js";
 import { countyOptions, romanianLocations } from "../constants/romaniaLocations.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 const listingsPerPage = 12;
 
@@ -23,14 +29,20 @@ const initialFilters = {
   city: "",
   propertyType: "",
   transactionType: "",
+  currency: "",
   minPrice: "",
   maxPrice: "",
   rooms: "",
   balcony: "",
+  hasAirConditioning: "",
+  hasElevator: "",
+  petFriendly: "",
+  compartmentalization: "",
   parking: "",
   furnished: "",
-  hasOwnCentralHeating: "",
-  sort: "newest"
+  heatingType: "",
+  centralHeatingType: "",
+  sort: "relevance"
 };
 
 function filtersAreEqual(first, second) {
@@ -39,6 +51,7 @@ function filtersAreEqual(first, second) {
 
 export function MarketplacePage() {
   const { isAuthenticated } = useAuth();
+  const { showToast } = useToast();
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [page, setPage] = useState(1);
@@ -47,17 +60,26 @@ export function MarketplacePage() {
   const [savedSearches, setSavedSearches] = useState([]);
   const [naturalSearchText, setNaturalSearchText] = useState("");
   const [error, setError] = useState("");
-  const [naturalSearchStatus, setNaturalSearchStatus] = useState("");
-  const [savedSearchStatus, setSavedSearchStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isNaturalSearchLoading, setIsNaturalSearchLoading] = useState(false);
   const [isSavedSearchLoading, setIsSavedSearchLoading] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const query = useMemo(() => {
     return Object.fromEntries(
       Object.entries({ ...appliedFilters, page: 1, limit: 50 }).filter(([, value]) => value !== "")
     );
   }, [appliedFilters]);
+
+  const citySuggestions = useMemo(() => {
+    if (filters.county) {
+      return romanianLocations[filters.county] ?? [];
+    }
+
+    return [...new Set(Object.values(romanianLocations).flat())].sort((first, second) =>
+      first.localeCompare(second, "ro")
+    );
+  }, [filters.county]);
 
   const visibleListings = useMemo(() => {
     if (!visibleListingIds) {
@@ -68,9 +90,15 @@ export function MarketplacePage() {
     return listings.filter((listing) => visibleIdSet.has(listing.id));
   }, [listings, visibleListingIds]);
 
-  const totalPages = Math.max(1, Math.ceil(visibleListings.length / listingsPerPage));
+  const sponsoredListings = useMemo(() => {
+    return visibleListings.filter((listing) => listing.isSponsored);
+  }, [visibleListings]);
+  const regularListings = useMemo(() => {
+    return visibleListings.filter((listing) => !listing.isSponsored);
+  }, [visibleListings]);
+  const totalPages = Math.max(1, Math.ceil(regularListings.length / listingsPerPage));
   const currentPage = Math.min(page, totalPages);
-  const pagedListings = visibleListings.slice(
+  const pagedListings = regularListings.slice(
     (currentPage - 1) * listingsPerPage,
     currentPage * listingsPerPage
   );
@@ -78,23 +106,41 @@ export function MarketplacePage() {
   const activeFilterChips = useMemo(() => {
     return [
       appliedFilters.county ? { key: "county", label: `Judet: ${appliedFilters.county}` } : null,
-      appliedFilters.city ? { key: "city", label: `Oras/comuna: ${appliedFilters.city}` } : null,
+      appliedFilters.city ? { key: "city", label: `Oras: ${appliedFilters.city}` } : null,
       appliedFilters.propertyType
         ? { key: "propertyType", label: `Tip: ${propertyTypeLabels[appliedFilters.propertyType]}` }
         : null,
       appliedFilters.transactionType
         ? { key: "transactionType", label: `Tip anunt: ${transactionTypeLabels[appliedFilters.transactionType]}` }
         : null,
-      appliedFilters.minPrice ? { key: "minPrice", label: `Pret min: ${appliedFilters.minPrice}` } : null,
-      appliedFilters.maxPrice ? { key: "maxPrice", label: `Pret max: ${appliedFilters.maxPrice}` } : null,
+      appliedFilters.currency ? { key: "currency", label: `Moneda: ${appliedFilters.currency}` } : null,
+      appliedFilters.minPrice
+        ? { key: "minPrice", label: `Pret min: ${appliedFilters.minPrice}${appliedFilters.currency ? ` ${appliedFilters.currency}` : ""}` }
+        : null,
+      appliedFilters.maxPrice
+        ? { key: "maxPrice", label: `Pret max: ${appliedFilters.maxPrice}${appliedFilters.currency ? ` ${appliedFilters.currency}` : ""}` }
+        : null,
       appliedFilters.rooms ? { key: "rooms", label: `Camere: ${appliedFilters.rooms}` } : null,
+      appliedFilters.compartmentalization
+        ? { key: "compartmentalization", label: `Compartimentare: ${compartmentalizationLabels[appliedFilters.compartmentalization]}` }
+        : null,
       appliedFilters.furnished ? { key: "furnished", label: `Mobilare: ${furnishingLabels[appliedFilters.furnished]}` } : null,
       appliedFilters.parking ? { key: "parking", label: `Parcare: ${parkingLabels[appliedFilters.parking]}` } : null,
       appliedFilters.balcony ? { key: "balcony", label: `Balcon: ${appliedFilters.balcony === "true" ? "Da" : "Nu"}` } : null,
-      appliedFilters.hasOwnCentralHeating
-        ? { key: "hasOwnCentralHeating", label: `Centrala proprie: ${appliedFilters.hasOwnCentralHeating === "true" ? "Da" : "Nu"}` }
+      appliedFilters.hasAirConditioning
+        ? { key: "hasAirConditioning", label: `AC: ${appliedFilters.hasAirConditioning === "true" ? "Da" : "Nu"}` }
         : null,
-      appliedFilters.sort && appliedFilters.sort !== "newest"
+      appliedFilters.hasElevator
+        ? { key: "hasElevator", label: `Lift: ${appliedFilters.hasElevator === "true" ? "Da" : "Nu"}` }
+        : null,
+      appliedFilters.petFriendly
+        ? { key: "petFriendly", label: `Pet friendly: ${appliedFilters.petFriendly === "true" ? "Da" : "Nu"}` }
+        : null,
+      appliedFilters.heatingType ? { key: "heatingType", label: `Incalzire: ${heatingTypeLabels[appliedFilters.heatingType]}` } : null,
+      appliedFilters.centralHeatingType
+        ? { key: "centralHeatingType", label: `Tip centrala: ${centralHeatingTypeLabels[appliedFilters.centralHeatingType]}` }
+        : null,
+      appliedFilters.sort && appliedFilters.sort !== "relevance"
         ? { key: "sort", label: `Sortare: ${sortLabels[appliedFilters.sort]}` }
         : null
     ].filter(Boolean);
@@ -131,6 +177,12 @@ export function MarketplacePage() {
       isMounted = false;
     };
   }, [query]);
+
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
 
   useEffect(() => {
     let isMounted = true;
@@ -195,6 +247,10 @@ export function MarketplacePage() {
       ...(event.target.name === "county" ? { city: "" } : {})
     };
 
+    if (event.target.name === "heatingType" && nextValue !== "CENTRAL") {
+      nextFilters.centralHeatingType = "";
+    }
+
     setFilters(nextFilters);
   }
 
@@ -207,7 +263,6 @@ export function MarketplacePage() {
     setFilters(initialFilters);
     setAppliedFilters(initialFilters);
     setPage(1);
-    setNaturalSearchStatus("");
   }
 
   function removeFilter(filterKey) {
@@ -232,15 +287,20 @@ export function MarketplacePage() {
       city: appliedFilters.city || null,
       propertyType: appliedFilters.propertyType || null,
       transactionType: appliedFilters.transactionType || null,
+      currency: appliedFilters.currency || null,
       minPrice: appliedFilters.minPrice ? Number(appliedFilters.minPrice) : null,
       maxPrice: appliedFilters.maxPrice ? Number(appliedFilters.maxPrice) : null,
       rooms: appliedFilters.rooms ? Number(appliedFilters.rooms) : null,
       balcony: appliedFilters.balcony === "" ? null : appliedFilters.balcony === "true",
+      hasAirConditioning: appliedFilters.hasAirConditioning === "" ? null : appliedFilters.hasAirConditioning === "true",
+      hasElevator: appliedFilters.hasElevator === "" ? null : appliedFilters.hasElevator === "true",
+      petFriendly: appliedFilters.petFriendly === "" ? null : appliedFilters.petFriendly === "true",
+      compartmentalization: appliedFilters.compartmentalization || null,
       parking: appliedFilters.parking || null,
       furnished: appliedFilters.furnished || null,
-      hasOwnCentralHeating:
-        appliedFilters.hasOwnCentralHeating === "" ? null : appliedFilters.hasOwnCentralHeating === "true",
-      sort: appliedFilters.sort || "newest"
+      heatingType: appliedFilters.heatingType || null,
+      centralHeatingType: appliedFilters.centralHeatingType || null,
+      sort: appliedFilters.sort || "relevance"
     };
   }
 
@@ -256,19 +316,17 @@ export function MarketplacePage() {
     const name = window.prompt("Nume pentru cautarea salvata", suggestedName || "Cautare noua")?.trim() ?? "";
 
     if (name.length < 2) {
-      setSavedSearchStatus("");
-      setError("Introdu un nume pentru cautarea salvata.");
+      showToast({ message: "Introdu un nume pentru cautarea salvata.", type: "warning" });
       return;
     }
 
     setIsSavedSearchLoading(true);
     setError("");
-    setSavedSearchStatus("");
 
     try {
       const response = await createSavedSearch(savedSearchPayload(name));
       setSavedSearches((current) => [response.data, ...current]);
-      setSavedSearchStatus("Cautarea a fost salvata.");
+      showToast({ message: "Cautarea a fost salvata.", type: "success" });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -282,32 +340,39 @@ export function MarketplacePage() {
       county: savedSearch.county ?? "",
       propertyType: savedSearch.propertyType ?? "",
       transactionType: savedSearch.transactionType ?? "",
+      currency: savedSearch.currency ?? "",
       minPrice: savedSearch.minPrice ?? "",
       maxPrice: savedSearch.maxPrice ?? "",
       rooms: savedSearch.rooms ?? "",
       balcony: savedSearch.balcony === null || savedSearch.balcony === undefined ? "" : String(savedSearch.balcony),
+      hasAirConditioning:
+        savedSearch.hasAirConditioning === null || savedSearch.hasAirConditioning === undefined
+          ? ""
+          : String(savedSearch.hasAirConditioning),
+      hasElevator:
+        savedSearch.hasElevator === null || savedSearch.hasElevator === undefined ? "" : String(savedSearch.hasElevator),
+      petFriendly:
+        savedSearch.petFriendly === null || savedSearch.petFriendly === undefined ? "" : String(savedSearch.petFriendly),
+      compartmentalization: savedSearch.compartmentalization ?? "",
       parking: savedSearch.parking ?? "",
       furnished: savedSearch.furnished ?? "",
-      hasOwnCentralHeating:
-        savedSearch.hasOwnCentralHeating === null || savedSearch.hasOwnCentralHeating === undefined
-          ? ""
-          : String(savedSearch.hasOwnCentralHeating),
-      sort: savedSearch.sort || "newest"
+      heatingType: savedSearch.heatingType ?? "",
+      centralHeatingType: savedSearch.centralHeatingType ?? "",
+      sort: savedSearch.sort || "relevance"
     };
 
     applyFilterValues(nextFilters);
-    setSavedSearchStatus(`Cautarea "${savedSearch.name}" a fost aplicata.`);
+    showToast({ message: `Cautarea "${savedSearch.name}" a fost aplicata.`, type: "info" });
   }
 
   async function removeSavedSearch(id) {
     setIsSavedSearchLoading(true);
     setError("");
-    setSavedSearchStatus("");
 
     try {
       await deleteSavedSearch(id);
       setSavedSearches((current) => current.filter((savedSearch) => savedSearch.id !== id));
-      setSavedSearchStatus("Cautarea salvata a fost stearsa.");
+      showToast({ message: "Cautarea salvata a fost stearsa.", type: "success" });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -320,13 +385,12 @@ export function MarketplacePage() {
 
     const queryText = naturalSearchText.trim();
     if (queryText.length < 3) {
-      setError("Scrie cateva detalii despre proprietatea cautata.");
+      showToast({ message: "Scrie cateva detalii despre proprietatea cautata.", type: "warning" });
       return;
     }
 
     setIsNaturalSearchLoading(true);
     setError("");
-    setNaturalSearchStatus("");
 
     try {
       const response = await interpretListingSearch(queryText);
@@ -337,23 +401,34 @@ export function MarketplacePage() {
         county: interpreted.filters.county ?? "",
         maxPrice: interpreted.filters.maxPrice ?? "",
         minPrice: interpreted.filters.minPrice ?? "",
+        currency: interpreted.filters.currency ?? "",
         propertyType: interpreted.filters.propertyType ?? "",
         rooms: interpreted.filters.rooms ?? "",
         balcony: interpreted.filters.balcony === null || interpreted.filters.balcony === undefined
           ? ""
           : String(interpreted.filters.balcony),
+        hasAirConditioning:
+          interpreted.filters.hasAirConditioning === null || interpreted.filters.hasAirConditioning === undefined
+            ? ""
+            : String(interpreted.filters.hasAirConditioning),
+        hasElevator:
+          interpreted.filters.hasElevator === null || interpreted.filters.hasElevator === undefined
+            ? ""
+            : String(interpreted.filters.hasElevator),
+        petFriendly:
+          interpreted.filters.petFriendly === null || interpreted.filters.petFriendly === undefined
+            ? ""
+            : String(interpreted.filters.petFriendly),
+        compartmentalization: interpreted.filters.compartmentalization ?? "",
         parking: interpreted.filters.parking ?? "",
         furnished: interpreted.filters.furnished ?? "",
-        hasOwnCentralHeating:
-          interpreted.filters.hasOwnCentralHeating === null || interpreted.filters.hasOwnCentralHeating === undefined
-            ? ""
-            : String(interpreted.filters.hasOwnCentralHeating),
-        sort: interpreted.filters.sort || "newest",
+        heatingType: interpreted.filters.heatingType ?? "",
+        centralHeatingType: interpreted.filters.centralHeatingType ?? "",
+        sort: interpreted.filters.sort || "relevance",
         transactionType: interpreted.filters.transactionType ?? ""
       };
 
       applyFilterValues(nextFilters);
-      setNaturalSearchStatus(interpreted.explanation || "Am aplicat filtrele din descrierea ta.");
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -384,7 +459,6 @@ export function MarketplacePage() {
           <Sparkles size={18} aria-hidden="true" />
           {isNaturalSearchLoading ? "Interpretez..." : "Aplica filtre"}
         </button>
-        {naturalSearchStatus ? <p className="form-success">{naturalSearchStatus}</p> : null}
       </form>
 
       <MarketplaceMap listings={listings} onVisibleListingIdsChange={updateVisibleListingIds} />
@@ -402,15 +476,14 @@ export function MarketplacePage() {
           </select>
         </label>
         <label>
-          Oras / comuna
-          <select name="city" value={filters.city} onChange={updateFilter} disabled={!filters.county}>
-            <option value="">{filters.county ? "Toate localitatile" : "Alege judetul"}</option>
-            {(romanianLocations[filters.county] ?? []).map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
+          Oras
+          <CityAutocomplete
+            name="city"
+            value={filters.city}
+            onChange={updateFilter}
+            options={citySuggestions}
+            placeholder={filters.county ? "Tasteaza orasul" : "Tasteaza orasul"}
+          />
         </label>
         <label>
           Tip proprietate
@@ -443,57 +516,129 @@ export function MarketplacePage() {
           <input name="maxPrice" type="number" min="0" value={filters.maxPrice} onChange={updateFilter} />
         </label>
         <label>
+          Moneda
+          <select name="currency" value={filters.currency} onChange={updateFilter}>
+            <option value="">Toate</option>
+            {currencyOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Camere
           <input name="rooms" type="number" min="1" value={filters.rooms} onChange={updateFilter} />
         </label>
-        <label>
-          Sortare
-          <select name="sort" value={filters.sort} onChange={updateFilter}>
-            {Object.entries(sortLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Mobilare
-          <select name="furnished" value={filters.furnished} onChange={updateFilter}>
-            <option value="">Toate</option>
-            {Object.entries(furnishingLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Parcare
-          <select name="parking" value={filters.parking} onChange={updateFilter}>
-            <option value="">Toate</option>
-            {Object.entries(parkingLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Balcon
-          <select name="balcony" value={filters.balcony} onChange={updateFilter}>
-            <option value="">Toate</option>
-            <option value="true">Da</option>
-            <option value="false">Nu</option>
-          </select>
-        </label>
-        <label>
-          Centrala proprie
-          <select name="hasOwnCentralHeating" value={filters.hasOwnCentralHeating} onChange={updateFilter}>
-            <option value="">Toate</option>
-            <option value="true">Da</option>
-            <option value="false">Nu</option>
-          </select>
-        </label>
+
+        <button className="secondary-button advanced-filter-toggle" type="button" onClick={() => setShowAdvancedFilters((current) => !current)}>
+          <SlidersHorizontal size={17} aria-hidden="true" />
+          {showAdvancedFilters ? "Ascunde filtre avansate" : "Filtre avansate"}
+        </button>
+
+        {showAdvancedFilters ? (
+          <div className="advanced-filters">
+            <label>
+              Sortare
+              <select name="sort" value={filters.sort} onChange={updateFilter}>
+                {Object.entries(sortLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Compartimentare
+              <select name="compartmentalization" value={filters.compartmentalization} onChange={updateFilter}>
+                <option value="">Toate</option>
+                {Object.entries(compartmentalizationLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Mobilare
+              <select name="furnished" value={filters.furnished} onChange={updateFilter}>
+                <option value="">Toate</option>
+                {Object.entries(furnishingLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Parcare
+              <select name="parking" value={filters.parking} onChange={updateFilter}>
+                <option value="">Toate</option>
+                {Object.entries(parkingLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Balcon
+              <select name="balcony" value={filters.balcony} onChange={updateFilter}>
+                <option value="">Toate</option>
+                <option value="true">Da</option>
+                <option value="false">Nu</option>
+              </select>
+            </label>
+            <label>
+              Aer conditionat
+              <select name="hasAirConditioning" value={filters.hasAirConditioning} onChange={updateFilter}>
+                <option value="">Toate</option>
+                <option value="true">Da</option>
+                <option value="false">Nu</option>
+              </select>
+            </label>
+            <label>
+              Lift
+              <select name="hasElevator" value={filters.hasElevator} onChange={updateFilter}>
+                <option value="">Toate</option>
+                <option value="true">Da</option>
+                <option value="false">Nu</option>
+              </select>
+            </label>
+            <label>
+              Pet friendly
+              <select name="petFriendly" value={filters.petFriendly} onChange={updateFilter}>
+                <option value="">Toate</option>
+                <option value="true">Da</option>
+                <option value="false">Nu</option>
+              </select>
+            </label>
+            <label>
+              Tip incalzire
+              <select name="heatingType" value={filters.heatingType} onChange={updateFilter}>
+                <option value="">Toate</option>
+                {Object.entries(heatingTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {filters.heatingType === "CENTRAL" ? (
+          <label>
+            Tip centrala
+            <select name="centralHeatingType" value={filters.centralHeatingType} onChange={updateFilter}>
+              <option value="">Toate</option>
+              {Object.entries(centralHeatingTypeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+            ) : null}
+          </div>
+        ) : null}
         <div className="filter-actions">
           <button className="primary-button" type="submit">
             <Search size={18} aria-hidden="true" />
@@ -552,11 +697,8 @@ export function MarketplacePage() {
               Salveaza cautarea
             </button>
           </div>
-          {savedSearchStatus ? <p className="form-success">{savedSearchStatus}</p> : null}
         </section>
       ) : null}
-
-      {error ? <p className="form-error">{error}</p> : null}
 
       {isLoading ? <div className="page-status">Se incarca anunturile...</div> : null}
 
@@ -573,6 +715,20 @@ export function MarketplacePage() {
             {visibleListings.length} anunturi vizibile pe harta
             {visibleListings.length ? `, pagina ${currentPage} din ${totalPages}` : ""}
           </div>
+          {sponsoredListings.length > 0 ? (
+            <section className="sponsored-listings-section" aria-label="Anunturi promovate">
+              <div className="sponsored-listings-heading">
+                <span>Promovat</span>
+                <h2>Anunturi promovate</h2>
+              </div>
+              <div className="sponsored-listings-row">
+                {sponsoredListings.slice(0, 4).map((listing) => (
+                  <ListingCard key={listing.id} listing={listing} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {pagedListings.length > 0 ? (
             <>
               <div className="listing-grid">
@@ -582,12 +738,12 @@ export function MarketplacePage() {
               </div>
               <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setPage} />
             </>
-          ) : (
+          ) : sponsoredListings.length === 0 ? (
             <div className="empty-state">
               <h2>Nu exista anunturi in zona vizibila</h2>
               <p>Muta sau mareste harta pentru a vedea anunturile din alta zona.</p>
             </div>
-          )}
+          ) : null}
         </>
       ) : null}
     </section>

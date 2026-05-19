@@ -1,5 +1,8 @@
 import {
   furnishingStatuses,
+  centralHeatingTypes,
+  currencies,
+  heatingTypes,
   listingSortOptions,
   parkingTypes,
   propertyTypes,
@@ -7,6 +10,7 @@ import {
 } from "../constants/listingConstants.js";
 import { countyOptions, romanianLocations } from "../constants/romaniaLocations.js";
 import { env } from "../config/env.js";
+import { generateGeminiJson, hasGeminiApiKey } from "./gemini.service.js";
 
 const propertyKeywords = [
   { value: "APARTMENT", words: ["apartament", "apartment", "apartamente"] },
@@ -41,15 +45,20 @@ function emptyFilters() {
   return {
     city: null,
     county: null,
+    currency: null,
     maxPrice: null,
     minPrice: null,
     propertyType: null,
     rooms: null,
     balcony: null,
+    hasAirConditioning: null,
+    hasElevator: null,
+    petFriendly: null,
     parking: null,
     furnished: null,
-    hasOwnCentralHeating: null,
-    sort: "newest",
+    heatingType: null,
+    centralHeatingType: null,
+    sort: "relevance",
     transactionType: null
   };
 }
@@ -126,6 +135,12 @@ function parseWithRules(query) {
     filters.minPrice = parseAmount(minPriceMatch[2], minPriceMatch[3]);
   }
 
+  if (/\b(ron|lei)\b/.test(normalizedQuery)) {
+    filters.currency = "RON";
+  } else if (/\b(eur|euro)\b/.test(normalizedQuery)) {
+    filters.currency = "EUR";
+  }
+
   if (/(ieftin|ieftine|pret mic|cele mai ieftine)/.test(normalizedQuery)) {
     filters.sort = "price_asc";
   } else if (/(scump|lux|premium|pret mare)/.test(normalizedQuery)) {
@@ -150,8 +165,31 @@ function parseWithRules(query) {
     filters.balcony = true;
   }
 
+  if (/(aer conditionat|ac\b|clima|climatizare)/.test(normalizedQuery)) {
+    filters.hasAirConditioning = true;
+  }
+
+  if (/(lift|ascensor)/.test(normalizedQuery)) {
+    filters.hasElevator = true;
+  }
+
+  if (/(pet friendly|animale|accepta animale|animale de companie)/.test(normalizedQuery)) {
+    filters.petFriendly = true;
+  }
+
   if (/(centrala proprie|incalzire proprie)/.test(normalizedQuery)) {
-    filters.hasOwnCentralHeating = true;
+    filters.heatingType = "CENTRAL";
+    filters.centralHeatingType = "INDIVIDUAL";
+  } else if (/(centrala de bloc|centrala blocului)/.test(normalizedQuery)) {
+    filters.heatingType = "CENTRAL";
+    filters.centralHeatingType = "BUILDING";
+  } else if (/(centrala de ansamblu|centrala de complex|centrala complexului)/.test(normalizedQuery)) {
+    filters.heatingType = "CENTRAL";
+    filters.centralHeatingType = "RESIDENTIAL_COMPLEX";
+  } else if (/(termoficare|radet|sacet)/.test(normalizedQuery)) {
+    filters.heatingType = "DISTRICT";
+  } else if (/(incalzire electrica|electric)/.test(normalizedQuery)) {
+    filters.heatingType = "ELECTRIC";
   }
 
   return {
@@ -180,6 +218,10 @@ function cleanFilters(filters) {
     nextFilters.transactionType = filters.transactionType;
   }
 
+  if (currencies.includes(filters.currency)) {
+    nextFilters.currency = filters.currency;
+  }
+
   if (Number.isInteger(filters.rooms) && filters.rooms > 0) {
     nextFilters.rooms = filters.rooms;
   }
@@ -196,6 +238,18 @@ function cleanFilters(filters) {
     nextFilters.balcony = filters.balcony;
   }
 
+  if (typeof filters.hasAirConditioning === "boolean") {
+    nextFilters.hasAirConditioning = filters.hasAirConditioning;
+  }
+
+  if (typeof filters.hasElevator === "boolean") {
+    nextFilters.hasElevator = filters.hasElevator;
+  }
+
+  if (typeof filters.petFriendly === "boolean") {
+    nextFilters.petFriendly = filters.petFriendly;
+  }
+
   if (parkingTypes.includes(filters.parking)) {
     nextFilters.parking = filters.parking;
   }
@@ -204,8 +258,16 @@ function cleanFilters(filters) {
     nextFilters.furnished = filters.furnished;
   }
 
-  if (typeof filters.hasOwnCentralHeating === "boolean") {
-    nextFilters.hasOwnCentralHeating = filters.hasOwnCentralHeating;
+  if (heatingTypes.includes(filters.heatingType)) {
+    nextFilters.heatingType = filters.heatingType;
+  }
+
+  if (centralHeatingTypes.includes(filters.centralHeatingType)) {
+    nextFilters.centralHeatingType = filters.centralHeatingType;
+  }
+
+  if (nextFilters.heatingType !== "CENTRAL") {
+    nextFilters.centralHeatingType = null;
   }
 
   if (nextFilters.minPrice !== null && nextFilters.maxPrice !== null && nextFilters.minPrice > nextFilters.maxPrice) {
@@ -258,30 +320,40 @@ async function parseWithOpenAi(query) {
             properties: {
               city: { type: ["string", "null"] },
               county: { type: ["string", "null"] },
+              currency: { enum: [...currencies, null] },
               explanation: { type: "string" },
               maxPrice: { type: ["number", "null"] },
               minPrice: { type: ["number", "null"] },
               propertyType: { enum: [...propertyTypes, null] },
               rooms: { type: ["integer", "null"] },
               balcony: { type: ["boolean", "null"] },
+              hasAirConditioning: { type: ["boolean", "null"] },
+              hasElevator: { type: ["boolean", "null"] },
+              petFriendly: { type: ["boolean", "null"] },
               parking: { enum: [...parkingTypes, null] },
               furnished: { enum: [...furnishingStatuses, null] },
-              hasOwnCentralHeating: { type: ["boolean", "null"] },
+              heatingType: { enum: [...heatingTypes, null] },
+              centralHeatingType: { enum: [...centralHeatingTypes, null] },
               sort: { enum: listingSortOptions },
               transactionType: { enum: [...transactionTypes, null] }
             },
             required: [
               "city",
               "county",
+              "currency",
               "explanation",
               "maxPrice",
               "minPrice",
               "propertyType",
               "rooms",
               "balcony",
+              "hasAirConditioning",
+              "hasElevator",
+              "petFriendly",
               "parking",
               "furnished",
-              "hasOwnCentralHeating",
+              "heatingType",
+              "centralHeatingType",
               "sort",
               "transactionType"
             ],
@@ -314,8 +386,101 @@ async function parseWithOpenAi(query) {
   };
 }
 
+const geminiSearchSchema = {
+  properties: {
+    balcony: { nullable: true, type: "BOOLEAN" },
+    hasAirConditioning: { nullable: true, type: "BOOLEAN" },
+    hasElevator: { nullable: true, type: "BOOLEAN" },
+    petFriendly: { nullable: true, type: "BOOLEAN" },
+    city: { nullable: true, type: "STRING" },
+    county: { nullable: true, type: "STRING" },
+    currency: { enum: currencies, nullable: true, type: "STRING" },
+    explanation: { type: "STRING" },
+    furnished: { enum: furnishingStatuses, nullable: true, type: "STRING" },
+    heatingType: { enum: heatingTypes, nullable: true, type: "STRING" },
+    centralHeatingType: { enum: centralHeatingTypes, nullable: true, type: "STRING" },
+    maxPrice: { nullable: true, type: "NUMBER" },
+    minPrice: { nullable: true, type: "NUMBER" },
+    parking: { enum: parkingTypes, nullable: true, type: "STRING" },
+    propertyType: { enum: propertyTypes, nullable: true, type: "STRING" },
+    rooms: { nullable: true, type: "INTEGER" },
+    sort: { enum: listingSortOptions, type: "STRING" },
+    transactionType: { enum: transactionTypes, nullable: true, type: "STRING" }
+  },
+  propertyOrdering: [
+    "city",
+    "county",
+    "currency",
+    "explanation",
+    "maxPrice",
+    "minPrice",
+    "propertyType",
+    "rooms",
+    "balcony",
+    "hasAirConditioning",
+    "hasElevator",
+    "petFriendly",
+    "parking",
+    "furnished",
+    "heatingType",
+    "centralHeatingType",
+    "sort",
+    "transactionType"
+  ],
+  required: [
+    "city",
+    "county",
+    "currency",
+    "explanation",
+    "maxPrice",
+    "minPrice",
+    "propertyType",
+    "rooms",
+    "balcony",
+    "hasAirConditioning",
+    "hasElevator",
+    "petFriendly",
+    "parking",
+    "furnished",
+    "heatingType",
+    "centralHeatingType",
+    "sort",
+    "transactionType"
+  ],
+  type: "OBJECT"
+};
+
+async function parseWithGemini(query) {
+  const parsed = await generateGeminiJson({
+    prompt: [
+      "Map this Romanian natural-language real estate search to the provided filter schema.",
+      "Return only supported enum values and known Romanian county/city combinations.",
+      "If the user asks for rent/chirie/inchiriere use transactionType RENT.",
+      "If the user asks for purchase/cumparare/vanzare use transactionType SALE.",
+      "Use null when a field is not clearly present.",
+      `Allowed counties/cities: ${JSON.stringify(romanianLocations)}`,
+      `Search query: ${query}`
+    ].join("\n"),
+    schema: geminiSearchSchema
+  });
+
+  return {
+    explanation: parsed.explanation || "Am interpretat cautarea cu Gemini.",
+    filters: cleanFilters(parsed),
+    source: "gemini"
+  };
+}
+
 export async function interpretListingSearch(query) {
-  if (env.openAiApiKey) {
+  if (hasGeminiApiKey()) {
+    try {
+      return await parseWithGemini(query);
+    } catch {
+      // Continue to OpenAI fallback when both providers are configured.
+    }
+  }
+
+  if (env.openAiApiKey && !env.openAiApiKey.startsWith("AIza")) {
     try {
       return await parseWithOpenAi(query);
     } catch {

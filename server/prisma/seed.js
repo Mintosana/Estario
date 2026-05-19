@@ -49,7 +49,7 @@ function advancedAttributesForListing(listing, index) {
       parking: null,
       furnished: null,
       heatingType: null,
-      hasOwnCentralHeating: null,
+      centralHeatingType: null,
       buildingCondition: null,
       energyClass: null
     };
@@ -67,8 +67,14 @@ function advancedAttributesForListing(listing, index) {
     balcony: isHouse ? false : index % 4 !== 1,
     parking: parkingOptions[index % parkingOptions.length],
     furnished: furnishedOptions[index % furnishedOptions.length],
-    heatingType: isNewer || isHouse ? "OWN_CENTRAL" : index % 3 === 0 ? "DISTRICT" : "GAS",
-    hasOwnCentralHeating: Boolean(isNewer || isHouse || index % 3 !== 0),
+    heatingType: isNewer || isHouse || index % 3 !== 0 ? "CENTRAL" : "DISTRICT",
+    centralHeatingType: isNewer || isHouse || index % 3 !== 0
+      ? isHouse
+        ? "INDIVIDUAL"
+        : index % 5 === 0
+          ? "BUILDING"
+          : "INDIVIDUAL"
+      : null,
     buildingCondition: isNewer ? "NEW" : index % 3 === 0 ? "RENOVATED" : "GOOD",
     energyClass: isNewer ? "A" : index % 2 === 0 ? "B" : "C"
   };

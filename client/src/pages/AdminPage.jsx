@@ -5,6 +5,7 @@ import { approveListing, getPendingListings, getRejectedListings, rejectListing 
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { propertyTypeLabels, transactionTypeLabels } from "../constants/listingLabels.js";
 import { statusLabels } from "../constants/statusLabels.js";
+import { useToast } from "../context/ToastContext.jsx";
 import { formatArea, formatPrice } from "../utils/formatters.js";
 
 const tabs = {
@@ -13,11 +14,11 @@ const tabs = {
 };
 
 export function AdminPage() {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("pending");
   const [pendingListings, setPendingListings] = useState([]);
   const [rejectedListings, setRejectedListings] = useState([]);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [rejectReasons, setRejectReasons] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [actionId, setActionId] = useState("");
@@ -41,16 +42,21 @@ export function AdminPage() {
     loadModerationQueues();
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
+
   async function approve(id) {
     setActionId(id);
     setError("");
-    setSuccess("");
 
     try {
       const response = await approveListing(id);
       setPendingListings((current) => current.filter((listing) => listing.id !== id));
       setRejectedListings((current) => current.filter((listing) => listing.id !== id));
-      setSuccess(`Anuntul "${response.data.title}" a fost aprobat.`);
+      showToast({ message: `Anuntul "${response.data.title}" a fost aprobat.`, type: "success" });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -75,7 +81,6 @@ export function AdminPage() {
 
     setActionId(id);
     setError("");
-    setSuccess("");
 
     try {
       const response = await rejectListing(id, reason);
@@ -86,7 +91,7 @@ export function AdminPage() {
         delete next[id];
         return next;
       });
-      setSuccess(`Anuntul "${response.data.title}" a fost respins.`);
+      showToast({ message: `Anuntul "${response.data.title}" a fost respins.`, type: "success" });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -114,8 +119,6 @@ export function AdminPage() {
         </div>
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
-      {success ? <p className="form-success">{success}</p> : null}
       {isLoading ? <div className="page-status">Se incarca anunturile pentru moderare...</div> : null}
 
       <section className="moderation-section" aria-label="Moderare anunturi">

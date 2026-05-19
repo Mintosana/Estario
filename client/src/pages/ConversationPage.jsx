@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { getConversation, replyToConversation } from "../api/messagesApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 function formatMessageDate(value) {
   return new Intl.DateTimeFormat("ro-RO", {
@@ -15,6 +16,7 @@ function formatMessageDate(value) {
 export function ConversationPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [conversation, setConversation] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -55,6 +57,12 @@ export function ConversationPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [conversation?.messages.length]);
+
+  useEffect(() => {
+    if (error && conversation) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [conversation, error, showToast]);
 
   async function submitReply(event) {
     event.preventDefault();
@@ -132,7 +140,6 @@ export function ConversationPage() {
         </div>
 
         <form className="conversation-reply" onSubmit={submitReply}>
-          {error ? <p className="form-error">{error}</p> : null}
           <label>
             Raspuns
             <textarea

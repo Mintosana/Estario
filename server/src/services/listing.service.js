@@ -48,11 +48,17 @@ function publicWhereFromFilters(filters) {
     ...(filters.county ? { county: { contains: filters.county, mode: "insensitive" } } : {}),
     ...(filters.propertyType ? { propertyType: filters.propertyType } : {}),
     ...(filters.transactionType ? { transactionType: filters.transactionType } : {}),
+    ...(filters.currency ? { currency: filters.currency } : {}),
     ...(filters.rooms ? { rooms: filters.rooms } : {}),
     ...(filters.balcony !== undefined ? { balcony: filters.balcony } : {}),
+    ...(filters.hasAirConditioning !== undefined ? { hasAirConditioning: filters.hasAirConditioning } : {}),
+    ...(filters.hasElevator !== undefined ? { hasElevator: filters.hasElevator } : {}),
+    ...(filters.petFriendly !== undefined ? { petFriendly: filters.petFriendly } : {}),
+    ...(filters.compartmentalization ? { compartmentalization: filters.compartmentalization } : {}),
     ...(filters.parking ? { parking: filters.parking } : {}),
     ...(filters.furnished ? { furnished: filters.furnished } : {}),
-    ...(filters.hasOwnCentralHeating !== undefined ? { hasOwnCentralHeating: filters.hasOwnCentralHeating } : {}),
+    ...(filters.heatingType ? { heatingType: filters.heatingType } : {}),
+    ...(filters.centralHeatingType ? { centralHeatingType: filters.centralHeatingType } : {}),
     ...(filters.minPrice !== undefined || filters.maxPrice !== undefined
       ? {
           price: {
@@ -74,6 +80,157 @@ function orderByFromSort(sort) {
   }
 
   return { createdAt: "desc" };
+}
+
+function normalizeText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function textEquals(first, second) {
+  return normalizeText(first) === normalizeText(second);
+}
+
+function textContains(value, term) {
+  return normalizeText(value).includes(normalizeText(term));
+}
+
+function priceRangeScore(listing, filters) {
+  if (filters.minPrice === undefined && filters.maxPrice === undefined) {
+    return 0;
+  }
+
+  const price = Number(listing.price);
+
+  if (!Number.isFinite(price)) {
+    return 0;
+  }
+
+  if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
+    const midpoint = (filters.minPrice + filters.maxPrice) / 2;
+    const range = Math.max(filters.maxPrice - filters.minPrice, 1);
+    const distance = Math.min(Math.abs(price - midpoint) / range, 1);
+
+    return 16 + Math.round((1 - distance) * 10);
+  }
+
+  if (filters.maxPrice !== undefined) {
+    const distanceFromBudget = Math.max(filters.maxPrice - price, 0);
+    return 12 + Math.min(Math.round((distanceFromBudget / Math.max(filters.maxPrice, 1)) * 10), 10);
+  }
+
+  const distanceFromMinimum = Math.max(price - filters.minPrice, 0);
+  return 12 + Math.min(Math.round((distanceFromMinimum / Math.max(filters.minPrice, 1)) * 6), 6);
+}
+
+function completenessScore(listing) {
+  const optionalFields = [
+    "rooms",
+    "bathrooms",
+    "floor",
+    "totalFloors",
+    "yearBuilt",
+    "balcony",
+    "hasAirConditioning",
+    "hasElevator",
+    "petFriendly",
+    "compartmentalization",
+    "parking",
+    "furnished",
+    "heatingType",
+    "buildingCondition",
+    "energyClass"
+  ];
+  const filledFields = optionalFields.filter(
+    (field) => listing[field] !== null && listing[field] !== undefined && listing[field] !== ""
+  ).length;
+
+  return Math.round((filledFields / optionalFields.length) * 12);
+}
+
+function relevanceScore(listing, filters) {
+  let score = 0;
+
+  if (filters.city) {
+    score += textEquals(listing.city, filters.city) ? 32 : textContains(listing.address, filters.city) ? 18 : 0;
+  }
+
+  if (filters.county) {
+    score += textEquals(listing.county, filters.county) ? 16 : 0;
+  }
+
+  if (filters.propertyType && listing.propertyType === filters.propertyType) {
+    score += 18;
+  }
+
+  if (filters.transactionType && listing.transactionType === filters.transactionType) {
+    score += 18;
+  }
+
+  if (filters.rooms && listing.rooms === filters.rooms) {
+    score += 14;
+  }
+
+  score += priceRangeScore(listing, filters);
+
+  if (filters.balcony !== undefined && listing.balcony === filters.balcony) {
+    score += 8;
+  }
+
+  if (filters.hasAirConditioning !== undefined && listing.hasAirConditioning === filters.hasAirConditioning) {
+    score += 8;
+  }
+
+  if (filters.hasElevator !== undefined && listing.hasElevator === filters.hasElevator) {
+    score += 8;
+  }
+
+  if (filters.petFriendly !== undefined && listing.petFriendly === filters.petFriendly) {
+    score += 8;
+  }
+
+  if (filters.compartmentalization && listing.compartmentalization === filters.compartmentalization) {
+    score += 8;
+  }
+
+  if (filters.parking && listing.parking === filters.parking) {
+    score += 8;
+  }
+
+  if (filters.furnished && listing.furnished === filters.furnished) {
+    score += 8;
+  }
+
+  if (filters.heatingType && listing.heatingType === filters.heatingType) {
+    score += 8;
+  }
+
+  if (filters.centralHeatingType && listing.centralHeatingType === filters.centralHeatingType) {
+    score += 8;
+  }
+
+  if (listing.images?.length) {
+    score += 10;
+  }
+
+  score += completenessScore(listing);
+
+  return score;
+}
+
+function compareByRelevance(filters) {
+  return (first, second) => {
+    const scoreDifference = relevanceScore(second, filters) - relevanceScore(first, filters);
+
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
+
+    return new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime();
+  };
 }
 
 async function findListingOrThrow(id) {
@@ -101,6 +258,27 @@ async function removeLocalImageFiles(images) {
 export async function getPublicListings(filters) {
   const where = publicWhereFromFilters(filters);
   const skip = (filters.page - 1) * filters.limit;
+
+  if (filters.sort === "relevance") {
+    const [total, listings] = await prisma.$transaction([
+      prisma.listing.count({ where }),
+      prisma.listing.findMany({
+        where,
+        include: publicListingInclude
+      })
+    ]);
+    const sortedListings = listings.sort(compareByRelevance(filters)).slice(skip, skip + filters.limit);
+
+    return {
+      data: serializeListings(sortedListings),
+      pagination: {
+        page: filters.page,
+        limit: filters.limit,
+        total,
+        totalPages: Math.ceil(total / filters.limit)
+      }
+    };
+  }
 
   const [total, listings] = await prisma.$transaction([
     prisma.listing.count({ where }),
@@ -302,6 +480,8 @@ export async function removeListingImage(id, imageId, user) {
   });
 
   await removeLocalImageFiles([image]);
+
+  return getListingById(id, user);
 }
 
 export async function reorderListingImages(id, user, imageIds) {

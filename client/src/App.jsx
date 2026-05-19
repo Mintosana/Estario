@@ -13,6 +13,7 @@ import { ConversationPage } from "./pages/ConversationPage.jsx";
 import { ComparePage } from "./pages/ComparePage.jsx";
 import { FavoritesPage } from "./pages/FavoritesPage.jsx";
 import { MessagesInboxPage } from "./pages/MessagesInboxPage.jsx";
+import { NotificationsPage } from "./pages/NotificationsPage.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { OwnerProfilePage } from "./pages/OwnerProfilePage.jsx";
 
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/messages" element={<MessagesInboxPage />} />
           <Route path="/messages/:id" element={<ConversationPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/my-listings" element={<MyListingsPage />} />
           <Route path="/listings/new" element={<ListingFormPage mode="create" />} />

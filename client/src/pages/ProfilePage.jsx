@@ -1,21 +1,44 @@
-import { Camera, Save, UserCircle } from "lucide-react";
+import { BadgeEuro, Camera, CreditCard, Save, UserCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getApiErrorMessage, resolveApiAssetUrl } from "../api/axiosClient.js";
 import { updateProfileRequest, uploadProfileAvatarRequest } from "../api/authApi.js";
+import { buyPromotionBundle } from "../api/promotionApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
+
+const promotionBundles = [
+  {
+    credits: 3,
+    key: "starter",
+    name: "Starter",
+    price: 5
+  },
+  {
+    credits: 8,
+    key: "growth",
+    name: "Growth",
+    price: 12
+  },
+  {
+    credits: 20,
+    key: "pro",
+    name: "Pro",
+    price: 25
+  }
+];
 
 export function ProfilePage() {
   const { updateUser, user } = useAuth();
+  const { showToast } = useToast();
   const [form, setForm] = useState({
     name: user?.name ?? "",
     phone: user?.phone ?? "",
     bio: user?.bio ?? ""
   });
   const [avatarFile, setAvatarFile] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [buyingBundleKey, setBuyingBundleKey] = useState("");
 
   useEffect(() => {
     setForm({
@@ -34,16 +57,14 @@ export function ProfilePage() {
 
   async function submitProfile(event) {
     event.preventDefault();
-    setError("");
-    setSuccess("");
     setIsSaving(true);
 
     try {
       const response = await updateProfileRequest(form);
       updateUser(response.user);
-      setSuccess("Profilul a fost actualizat.");
+      showToast({ message: "Profilul a fost actualizat.", type: "success" });
     } catch (apiError) {
-      setError(getApiErrorMessage(apiError));
+      showToast({ message: getApiErrorMessage(apiError), type: "error" });
     } finally {
       setIsSaving(false);
     }
@@ -53,23 +74,35 @@ export function ProfilePage() {
     event.preventDefault();
 
     if (!avatarFile) {
-      setError("Alege o imagine pentru profil.");
+      showToast({ message: "Alege o imagine pentru profil.", type: "warning" });
       return;
     }
 
-    setError("");
-    setSuccess("");
     setIsUploading(true);
 
     try {
       const response = await uploadProfileAvatarRequest(avatarFile);
       updateUser(response.user);
       setAvatarFile(null);
-      setSuccess("Poza de profil a fost actualizata.");
+      showToast({ message: "Poza de profil a fost actualizata.", type: "success" });
     } catch (apiError) {
-      setError(getApiErrorMessage(apiError));
+      showToast({ message: getApiErrorMessage(apiError), type: "error" });
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function buyBundle(bundleKey) {
+    setBuyingBundleKey(bundleKey);
+
+    try {
+      const response = await buyPromotionBundle(bundleKey);
+      updateUser(response.user);
+      showToast({ message: `Pachetul ${response.bundle.label} a fost adaugat in cont.`, type: "success" });
+    } catch (apiError) {
+      showToast({ message: getApiErrorMessage(apiError), type: "error" });
+    } finally {
+      setBuyingBundleKey("");
     }
   }
 
@@ -81,9 +114,6 @@ export function ProfilePage() {
           <p>Actualizeaza informatiile afisate in contul tau Estario.</p>
         </div>
       </div>
-
-      {error ? <p className="form-error">{error}</p> : null}
-      {success ? <p className="form-success">{success}</p> : null}
 
       <div className="profile-layout">
         <section className="content-panel profile-avatar-panel">
@@ -142,6 +172,42 @@ export function ProfilePage() {
           </form>
         </section>
       </div>
+
+      <section className="promotion-panel" aria-label="Pachete promovare">
+        <div className="promotion-panel-heading">
+          <div>
+            <span>Boost anunturi</span>
+            <h2>Pachete promovare</h2>
+            <p>Cumpara credite demo si foloseste-le pentru a afisa anunturile tale in zona promovata.</p>
+          </div>
+          <div className="promotion-credit-balance">
+            <BadgeEuro size={22} aria-hidden="true" />
+            <strong>{user?.promotionCredits ?? 0}</strong>
+            <span>credite disponibile</span>
+          </div>
+        </div>
+
+        <div className="promotion-bundle-grid">
+          {promotionBundles.map((bundle) => (
+            <article className="promotion-bundle-card" key={bundle.key}>
+              <div>
+                <h3>{bundle.name}</h3>
+                <strong>{bundle.credits} credite</strong>
+                <p>{bundle.credits} luni de promovare pentru anunturile aprobate.</p>
+              </div>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => buyBundle(bundle.key)}
+                disabled={buyingBundleKey === bundle.key}
+              >
+                <CreditCard size={17} aria-hidden="true" />
+                {buyingBundleKey === bundle.key ? "Se proceseaza..." : `${bundle.price} EUR`}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }

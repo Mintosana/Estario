@@ -1,13 +1,17 @@
-import { Bath, BedDouble, MapPin, Ruler } from "lucide-react";
+import { BadgeEuro, Bath, BedDouble, MapPin, Ruler } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiOrigin } from "../../api/axiosClient.js";
 import {
+  centralHeatingTypeLabels,
+  compartmentalizationLabels,
   furnishingLabels,
+  heatingTypeLabels,
   parkingLabels,
   propertyTypeLabels,
   transactionTypeLabels
 } from "../../constants/listingLabels.js";
 import { formatArea, formatPrice, formatPricePerSquareMeter } from "../../utils/formatters.js";
+import { formatFloor } from "../../utils/listingDisplay.js";
 import { CompareButton } from "./CompareButton.jsx";
 import { ListingImage } from "./ListingImage.jsx";
 
@@ -17,12 +21,18 @@ export function ListingCard({ listing }) {
     : null;
 
   return (
-    <article className="listing-card">
+    <article className={`listing-card ${listing.isSponsored ? "listing-card-sponsored" : ""}`}>
       <Link to={`/listings/${listing.id}`} className="listing-card-image">
         <ListingImage src={imageUrl} alt={listing.title} />
       </Link>
       <div className="listing-card-body">
         <div className="listing-card-meta">
+          {listing.isSponsored ? (
+            <span className="sponsored-listing-badge">
+              <BadgeEuro size={13} aria-hidden="true" />
+              Promovat
+            </span>
+          ) : null}
           <span>{transactionTypeLabels[listing.transactionType]}</span>
           <span>{propertyTypeLabels[listing.propertyType]}</span>
         </div>
@@ -59,10 +69,19 @@ export function ListingCard({ listing }) {
           ) : null}
         </dl>
         <div className="listing-attribute-chips">
+          {listing.floor !== null && listing.floor !== undefined ? <span>Etaj {formatFloor(listing.floor, listing.totalFloors)}</span> : null}
+          {listing.compartmentalization ? <span>{compartmentalizationLabels[listing.compartmentalization]}</span> : null}
           {listing.furnished ? <span>{furnishingLabels[listing.furnished]}</span> : null}
           {listing.parking && listing.parking !== "NONE" ? <span>{parkingLabels[listing.parking]}</span> : null}
           {listing.balcony ? <span>Balcon</span> : null}
-          {listing.hasOwnCentralHeating ? <span>Centrala proprie</span> : null}
+          {listing.hasAirConditioning ? <span>AC</span> : null}
+          {listing.hasElevator ? <span>Lift</span> : null}
+          {listing.petFriendly ? <span>Pet friendly</span> : null}
+          {listing.heatingType === "CENTRAL" && listing.centralHeatingType ? (
+            <span>{centralHeatingTypeLabels[listing.centralHeatingType]}</span>
+          ) : listing.heatingType ? (
+            <span>{heatingTypeLabels[listing.heatingType]}</span>
+          ) : null}
         </div>
         <CompareButton listingId={listing.id} variant="compact" />
       </div>

@@ -6,13 +6,17 @@ export const listingStatuses = ["PENDING", "APPROVED", "REJECTED"];
 
 export const currencies = ["EUR", "RON"];
 
-export const listingSortOptions = ["newest", "price_asc", "price_desc"];
+export const listingSortOptions = ["relevance", "newest", "price_asc", "price_desc"];
 
 export const furnishingStatuses = ["UNFURNISHED", "PARTIAL", "FURNISHED"];
 
+export const compartmentalizationTypes = ["DETACHED", "SEMI_DETACHED", "NON_DETACHED", "CIRCULAR", "OPEN_SPACE"];
+
 export const parkingTypes = ["NONE", "PARKING_SPOT", "GARAGE"];
 
-export const heatingTypes = ["OWN_CENTRAL", "DISTRICT", "ELECTRIC", "GAS", "OTHER"];
+export const heatingTypes = ["CENTRAL", "DISTRICT", "ELECTRIC", "GAS", "OTHER"];
+
+export const centralHeatingTypes = ["INDIVIDUAL", "BUILDING", "RESIDENTIAL_COMPLEX"];
 
 export const buildingConditions = ["NEW", "RENOVATED", "GOOD", "NEEDS_RENOVATION"];
 

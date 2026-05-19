@@ -1,16 +1,24 @@
 import { UserPlus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { PasswordField } from "../components/forms/PasswordField.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 export function RegisterPage() {
   const { register } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
 
   function updateField(event) {
     setForm((current) => ({
@@ -72,7 +80,6 @@ export function RegisterPage() {
           required
           minLength={8}
         />
-        {error ? <p className="form-error">{error}</p> : null}
         <button className="primary-button" type="submit" disabled={isSubmitting}>
           <UserPlus size={18} aria-hidden="true" />
           {isSubmitting ? "Se creeaza contul..." : "Creeaza cont"}

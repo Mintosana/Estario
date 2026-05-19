@@ -4,11 +4,12 @@ import { Link } from "react-router-dom";
 import { getApiErrorMessage } from "../api/axiosClient.js";
 import { getFavorites, removeFavorite } from "../api/favoritesApi.js";
 import { ListingCard } from "../components/listings/ListingCard.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 export function FavoritesPage() {
+  const { showToast } = useToast();
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [removingId, setRemovingId] = useState("");
 
@@ -30,15 +31,20 @@ export function FavoritesPage() {
     loadFavorites();
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
+
   async function removeFromFavorites(listingId) {
     setRemovingId(listingId);
     setError("");
-    setNotice("");
 
     try {
       await removeFavorite(listingId);
       setFavorites((current) => current.filter((listing) => listing.id !== listingId));
-      setNotice("Anuntul a fost eliminat din favorite.");
+      showToast({ message: "Anuntul a fost eliminat din favorite.", type: "success" });
     } catch (apiError) {
       setError(getApiErrorMessage(apiError));
     } finally {
@@ -58,8 +64,6 @@ export function FavoritesPage() {
         </Link>
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
-      {notice ? <p className="form-success">{notice}</p> : null}
       {isLoading ? <div className="page-status">Se incarca favoritele...</div> : null}
 
       {!isLoading && favorites.length === 0 ? (

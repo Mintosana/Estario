@@ -3,9 +3,11 @@ import {
   destroyListing,
   destroyListingImage,
   editListing,
+  generateListingDescriptionAction,
   interpretListingSearchAction,
   listMyListings,
   listPublicListings,
+  reviewListingQualityAction,
   showMyListingAnalytics,
   showListing,
   storeListing,
@@ -18,6 +20,8 @@ import { validateMiddleware } from "../middleware/validate.middleware.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
   createListingSchema,
+  listingDescriptionSchema,
+  listingQualitySchema,
   naturalListingSearchSchema,
   listingFiltersSchema,
   listingIdParamsSchema,
@@ -33,6 +37,18 @@ router.post(
   "/listings/interpret-search",
   validateMiddleware(naturalListingSearchSchema),
   asyncHandler(interpretListingSearchAction)
+);
+router.post(
+  "/listings/quality-check",
+  authMiddleware,
+  validateMiddleware(listingQualitySchema),
+  asyncHandler(reviewListingQualityAction)
+);
+router.post(
+  "/listings/generate-description",
+  authMiddleware,
+  validateMiddleware(listingDescriptionSchema),
+  asyncHandler(generateListingDescriptionAction)
 );
 router.get("/my-listings/analytics", authMiddleware, asyncHandler(showMyListingAnalytics));
 router.get(

@@ -15,6 +15,16 @@ export async function interpretListingSearch(query) {
   return response.data;
 }
 
+export async function checkListingQuality(payload) {
+  const response = await axiosClient.post("/listings/quality-check", payload);
+  return response.data;
+}
+
+export async function generateListingDescription(payload) {
+  const response = await axiosClient.post("/listings/generate-description", payload);
+  return response.data;
+}
+
 export async function getMyListings() {
   const response = await axiosClient.get("/my-listings");
   return response.data;
@@ -60,5 +70,6 @@ export async function updateListingImageOrder(id, imageIds) {
 }
 
 export async function deleteListingImage(id, imageId) {
-  await axiosClient.delete(`/listings/${id}/images/${imageId}`);
+  const response = await axiosClient.delete(`/listings/${id}/images/${imageId}`);
+  return response.data;
 }

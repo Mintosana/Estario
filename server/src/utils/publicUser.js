@@ -6,6 +6,7 @@ export function toPublicUser(user) {
     avatarUrl: user.avatarUrl,
     phone: user.phone,
     bio: user.bio,
+    promotionCredits: user.promotionCredits ?? 0,
     role: user.role,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt

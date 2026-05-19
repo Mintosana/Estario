@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   buildingConditions,
+  centralHeatingTypes,
+  compartmentalizationTypes,
   currencies,
   energyClasses,
   furnishingStatuses,
@@ -69,6 +71,7 @@ const listingBodyBase = {
   rooms: optionalPositiveInt,
   bathrooms: optionalPositiveInt,
   floor: optionalInt,
+  totalFloors: optionalPositiveInt,
   yearBuilt: z.coerce
     .number()
     .int()
@@ -77,10 +80,14 @@ const listingBodyBase = {
     .optional()
     .nullable(),
   balcony: z.boolean().optional().nullable(),
+  hasAirConditioning: z.boolean().optional().nullable(),
+  hasElevator: z.boolean().optional().nullable(),
+  petFriendly: z.boolean().optional().nullable(),
+  compartmentalization: z.enum(compartmentalizationTypes).optional().nullable(),
   parking: z.enum(parkingTypes).optional().nullable(),
   furnished: z.enum(furnishingStatuses).optional().nullable(),
   heatingType: z.enum(heatingTypes).optional().nullable(),
-  hasOwnCentralHeating: z.boolean().optional().nullable(),
+  centralHeatingType: z.enum(centralHeatingTypes).optional().nullable(),
   buildingCondition: z.enum(buildingConditions).optional().nullable(),
   energyClass: z.enum(energyClasses).optional().nullable()
 };
@@ -136,16 +143,22 @@ export const listingFiltersSchema = z.object({
       county: z.string().trim().optional(),
       propertyType: z.enum(propertyTypes).optional(),
       transactionType: z.enum(transactionTypes).optional(),
+      currency: z.enum(currencies).optional(),
       minPrice: z.coerce.number().nonnegative().optional(),
       maxPrice: z.coerce.number().nonnegative().optional(),
       rooms: z.coerce.number().int().positive().optional(),
       balcony: optionalBooleanQuery,
+      hasAirConditioning: optionalBooleanQuery,
+      hasElevator: optionalBooleanQuery,
+      petFriendly: optionalBooleanQuery,
+      compartmentalization: z.enum(compartmentalizationTypes).optional(),
       parking: z.enum(parkingTypes).optional(),
       furnished: z.enum(furnishingStatuses).optional(),
-      hasOwnCentralHeating: optionalBooleanQuery,
+      heatingType: z.enum(heatingTypes).optional(),
+      centralHeatingType: z.enum(centralHeatingTypes).optional(),
       page: z.coerce.number().int().positive().default(1),
       limit: z.coerce.number().int().positive().max(50).default(12),
-      sort: z.enum(listingSortOptions).default("newest")
+      sort: z.enum(listingSortOptions).default("relevance")
     })
     .refine(
       (query) =>
@@ -166,6 +179,86 @@ export const naturalListingSearchSchema = z.object({
       .trim()
       .min(3, "Descrierea cautarii este prea scurta.")
       .max(500, "Descrierea cautarii este prea lunga.")
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional()
+});
+
+export const listingQualitySchema = z.object({
+  body: z.object({
+    title: z.string().trim().max(140, "Titlul este prea lung.").optional().nullable(),
+    description: z.string().trim().max(5000, "Descrierea este prea lunga.").optional().nullable(),
+    propertyType: z.enum(propertyTypes).optional().nullable(),
+    transactionType: z.enum(transactionTypes).optional().nullable(),
+    price: z.coerce.number().positive("Pretul trebuie sa fie pozitiv.").optional().nullable(),
+    currency: z.enum(currencies).optional().nullable(),
+    city: z.string().trim().max(80, "Orasul este prea lung.").optional().nullable(),
+    county: z.string().trim().max(80, "Judetul este prea lung.").optional().nullable(),
+    address: z.string().trim().max(180, "Adresa este prea lunga.").optional().nullable(),
+    latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+    longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+    surface: z.coerce.number().int().positive("Suprafata trebuie sa fie pozitiva.").optional().nullable(),
+    rooms: optionalPositiveInt,
+    bathrooms: optionalPositiveInt,
+    floor: optionalInt,
+    totalFloors: optionalPositiveInt,
+    yearBuilt: z.coerce
+      .number()
+      .int()
+      .min(1800, "Anul constructiei nu este valid.")
+      .max(new Date().getFullYear() + 1, "Anul constructiei nu este valid.")
+      .optional()
+      .nullable(),
+    balcony: z.boolean().optional().nullable(),
+    hasAirConditioning: z.boolean().optional().nullable(),
+    hasElevator: z.boolean().optional().nullable(),
+    petFriendly: z.boolean().optional().nullable(),
+    compartmentalization: z.enum(compartmentalizationTypes).optional().nullable(),
+    parking: z.enum(parkingTypes).optional().nullable(),
+    furnished: z.enum(furnishingStatuses).optional().nullable(),
+    heatingType: z.enum(heatingTypes).optional().nullable(),
+    centralHeatingType: z.enum(centralHeatingTypes).optional().nullable(),
+    buildingCondition: z.enum(buildingConditions).optional().nullable(),
+    energyClass: z.enum(energyClasses).optional().nullable(),
+    imageCount: z.coerce.number().int().min(0).max(30).default(0)
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional()
+});
+
+export const listingDescriptionSchema = z.object({
+  body: z.object({
+    title: z.string().trim().max(140, "Titlul este prea lung.").optional().nullable(),
+    propertyType: z.enum(propertyTypes),
+    transactionType: z.enum(transactionTypes),
+    price: z.coerce.number().positive("Pretul trebuie sa fie pozitiv.").optional().nullable(),
+    currency: z.enum(currencies).default("EUR"),
+    city: z.string().trim().max(80, "Orasul este prea lung.").optional().nullable(),
+    county: z.string().trim().max(80, "Judetul este prea lung.").optional().nullable(),
+    address: z.string().trim().max(180, "Adresa este prea lunga.").optional().nullable(),
+    surface: z.coerce.number().int().positive("Suprafata trebuie sa fie pozitiva.").optional().nullable(),
+    rooms: optionalPositiveInt,
+    bathrooms: optionalPositiveInt,
+    floor: optionalInt,
+    totalFloors: optionalPositiveInt,
+    yearBuilt: z.coerce
+      .number()
+      .int()
+      .min(1800, "Anul constructiei nu este valid.")
+      .max(new Date().getFullYear() + 1, "Anul constructiei nu este valid.")
+      .optional()
+      .nullable(),
+    balcony: z.boolean().optional().nullable(),
+    hasAirConditioning: z.boolean().optional().nullable(),
+    hasElevator: z.boolean().optional().nullable(),
+    petFriendly: z.boolean().optional().nullable(),
+    compartmentalization: z.enum(compartmentalizationTypes).optional().nullable(),
+    parking: z.enum(parkingTypes).optional().nullable(),
+    furnished: z.enum(furnishingStatuses).optional().nullable(),
+    heatingType: z.enum(heatingTypes).optional().nullable(),
+    centralHeatingType: z.enum(centralHeatingTypes).optional().nullable(),
+    buildingCondition: z.enum(buildingConditions).optional().nullable(),
+    energyClass: z.enum(energyClasses).optional().nullable()
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional()

@@ -18,6 +18,8 @@ export const env = {
   ],
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   jwtSecret: process.env.JWT_SECRET,
+  googleApiKey: process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY ?? "",
+  googleModel: process.env.GOOGLE_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
   nodeEnv: process.env.NODE_ENV ?? "development",
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
   openAiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",

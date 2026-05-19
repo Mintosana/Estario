@@ -1,6 +1,10 @@
 import { z } from "zod";
 import {
+  centralHeatingTypes,
+  compartmentalizationTypes,
+  currencies,
   furnishingStatuses,
+  heatingTypes,
   listingSortOptions,
   parkingTypes,
   propertyTypes,
@@ -17,14 +21,20 @@ const savedSearchBodyBase = z.object({
   county: z.string().trim().max(80, "Judetul este prea lung.").optional().nullable(),
   propertyType: z.enum(propertyTypes).optional().nullable(),
   transactionType: z.enum(transactionTypes).optional().nullable(),
+  currency: z.enum(currencies).optional().nullable(),
   minPrice: z.coerce.number().nonnegative().optional().nullable(),
   maxPrice: z.coerce.number().nonnegative().optional().nullable(),
   rooms: z.coerce.number().int().positive().optional().nullable(),
   balcony: z.boolean().optional().nullable(),
+  hasAirConditioning: z.boolean().optional().nullable(),
+  hasElevator: z.boolean().optional().nullable(),
+  petFriendly: z.boolean().optional().nullable(),
+  compartmentalization: z.enum(compartmentalizationTypes).optional().nullable(),
   parking: z.enum(parkingTypes).optional().nullable(),
   furnished: z.enum(furnishingStatuses).optional().nullable(),
-  hasOwnCentralHeating: z.boolean().optional().nullable(),
-  sort: z.enum(listingSortOptions).default("newest")
+  heatingType: z.enum(heatingTypes).optional().nullable(),
+  centralHeatingType: z.enum(centralHeatingTypes).optional().nullable(),
+  sort: z.enum(listingSortOptions).default("relevance")
 });
 
 const savedSearchPriceRangeRefinement = [

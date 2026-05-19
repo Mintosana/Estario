@@ -10,7 +10,9 @@ import {
   reorderListingImages,
   updateListing
 } from "../services/listing.service.js";
+import { generateListingDescription } from "../services/listingDescription.service.js";
 import { interpretListingSearch } from "../services/naturalListingSearch.service.js";
+import { reviewListingQuality } from "../services/listingQuality.service.js";
 
 export async function listPublicListings(req, res) {
   const result = await getPublicListings(req.validated.query);
@@ -19,6 +21,16 @@ export async function listPublicListings(req, res) {
 
 export async function interpretListingSearchAction(req, res) {
   const result = await interpretListingSearch(req.validated.body.query);
+  res.json({ data: result });
+}
+
+export async function reviewListingQualityAction(req, res) {
+  const result = await reviewListingQuality(req.validated.body, req.user);
+  res.json({ data: result });
+}
+
+export async function generateListingDescriptionAction(req, res) {
+  const result = await generateListingDescription(req.validated.body);
   res.json({ data: result });
 }
 
@@ -58,8 +70,8 @@ export async function uploadListingImages(req, res) {
 }
 
 export async function destroyListingImage(req, res) {
-  await removeListingImage(req.validated.params.id, req.validated.params.imageId, req.user);
-  res.status(204).send();
+  const listing = await removeListingImage(req.validated.params.id, req.validated.params.imageId, req.user);
+  res.json({ data: listing });
 }
 
 export async function updateListingImageOrder(req, res) {

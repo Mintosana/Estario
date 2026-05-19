@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma.js";
 import { publicListingInclude } from "../constants/listingConstants.js";
 import { AppError } from "../utils/AppError.js";
 import { serializeListing, serializeListings } from "../utils/listingSerializer.js";
+import { createNotification } from "./notification.service.js";
 
 function moderationWhere(status) {
   return { status };
@@ -209,6 +210,14 @@ export async function approveListing(id) {
     include: publicListingInclude
   });
 
+  await createNotification({
+    body: "Anuntul tau este acum vizibil public in marketplace.",
+    targetUrl: `/listings/${updatedListing.id}`,
+    title: `Anunt aprobat: ${updatedListing.title}`,
+    type: "LISTING_APPROVED",
+    userId: updatedListing.ownerId
+  });
+
   return serializeListing(updatedListing);
 }
 
@@ -232,6 +241,14 @@ export async function rejectListing(id, reason) {
       rejectionReason: reason
     },
     include: publicListingInclude
+  });
+
+  await createNotification({
+    body: reason,
+    targetUrl: `/listings/${updatedListing.id}/edit`,
+    title: `Anunt respins: ${updatedListing.title}`,
+    type: "LISTING_REJECTED",
+    userId: updatedListing.ownerId
   });
 
   return serializeListing(updatedListing);

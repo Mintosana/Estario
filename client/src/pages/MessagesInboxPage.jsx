@@ -5,6 +5,7 @@ import { getApiErrorMessage } from "../api/axiosClient.js";
 import { getConversations } from "../api/messagesApi.js";
 import { statusLabels } from "../constants/statusLabels.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 
 function formatMessageDate(value) {
   if (!value) {
@@ -19,6 +20,7 @@ function formatMessageDate(value) {
 
 export function MessagesInboxPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +55,12 @@ export function MessagesInboxPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      showToast({ message: error, type: "error" });
+    }
+  }, [error, showToast]);
+
   return (
     <section className="dashboard-page">
       <div className="dashboard-header">
@@ -65,7 +73,6 @@ export function MessagesInboxPage() {
         </Link>
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
       {isLoading ? <div className="page-status">Se incarca mesajele...</div> : null}
 
       {!isLoading && conversations.length === 0 ? (
