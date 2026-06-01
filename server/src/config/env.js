@@ -11,6 +11,7 @@ for (const key of requiredEnv) {
 }
 
 export const env = {
+  clientUrl: process.env.CLIENT_URL ?? "http://localhost:5173",
   clientUrls: [
     process.env.CLIENT_URL ?? "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -23,5 +24,10 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
   openAiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-  port: Number(process.env.PORT ?? 5000)
+  port: Number(process.env.PORT ?? 5000),
+  stripe: {
+    currency: (process.env.STRIPE_CURRENCY ?? "eur").toLowerCase(),
+    secretKey: process.env.STRIPE_SECRET_KEY ?? "",
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? ""
+  }
 };

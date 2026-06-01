@@ -1,7 +1,10 @@
 import { buyPromotionBundle, sponsorListing } from "../services/promotion.service.js";
 
 export async function buyPromotionBundleAction(req, res) {
-  const result = await buyPromotionBundle(req.user.id, req.validated.body.bundleKey);
+  const result = await buyPromotionBundle(req.user.id, req.validated.body.bundleKey, {
+    origin: req.get("origin"),
+    returnPath: req.validated.body.returnPath
+  });
   res.json(result);
 }
 

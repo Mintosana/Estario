@@ -2,7 +2,12 @@ import { z } from "zod";
 
 export const buyPromotionBundleSchema = z.object({
   body: z.object({
-    bundleKey: z.enum(["starter", "growth", "pro"])
+    bundleKey: z.enum(["starter", "growth", "pro"]),
+    returnPath: z
+      .string()
+      .startsWith("/", "Calea de intoarcere trebuie sa fie locala.")
+      .max(200)
+      .optional()
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional()

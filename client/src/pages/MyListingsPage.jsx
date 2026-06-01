@@ -207,7 +207,6 @@ export function MyListingsPage() {
                   <div className="promotion-performance-heading">
                     <BarChart3 size={17} aria-hidden="true" />
                     <strong>Performanta promovare</strong>
-                    {listing.promotionAnalytics?.isEstimated ? <span>date demo</span> : null}
                   </div>
                   <div className="promotion-performance-grid">
                     <div>

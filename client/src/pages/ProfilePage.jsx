@@ -1,7 +1,8 @@
-import { BadgeEuro, Camera, CreditCard, Save, UserCircle } from "lucide-react";
+import { Camera, CreditCard, Save, UserCircle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { getApiErrorMessage, resolveApiAssetUrl } from "../api/axiosClient.js";
-import { updateProfileRequest, uploadProfileAvatarRequest } from "../api/authApi.js";
+import { meRequest, updateProfileRequest, uploadProfileAvatarRequest } from "../api/authApi.js";
 import { buyPromotionBundle } from "../api/promotionApi.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
@@ -11,25 +12,27 @@ const promotionBundles = [
     credits: 3,
     key: "starter",
     name: "Starter",
-    price: 5
+    price: 25
   },
   {
     credits: 8,
     key: "growth",
     name: "Growth",
-    price: 12
+    price: 60
   },
   {
     credits: 20,
     key: "pro",
     name: "Pro",
-    price: 25
+    price: 125
   }
 ];
 
 export function ProfilePage() {
   const { updateUser, user } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [form, setForm] = useState({
     name: user?.name ?? "",
     phone: user?.phone ?? "",
@@ -47,6 +50,51 @@ export function ProfilePage() {
       bio: user?.bio ?? ""
     });
   }, [user]);
+
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment");
+
+    if (!paymentStatus) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function handlePaymentReturn() {
+      if (paymentStatus === "success") {
+        try {
+          const response = await meRequest();
+          if (isMounted) {
+            updateUser(response.user);
+            showToast({
+              message: "Plata a fost confirmata! creditele pot aparea dupa cateva secunde.",
+              type: "success"
+            });
+          }
+        } catch (apiError) {
+          if (isMounted) {
+            showToast({ message: getApiErrorMessage(apiError), type: "error" });
+          }
+        }
+      }
+
+      if (paymentStatus === "canceled" && isMounted) {
+        showToast({ message: "Plata a fost anulata. Nu au fost adaugate credite.", type: "warning" });
+      }
+
+      if (isMounted) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("payment");
+        setSearchParams(nextParams, { replace: true });
+      }
+    }
+
+    handlePaymentReturn();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [searchParams, setSearchParams, showToast, updateUser]);
 
   function updateField(event) {
     setForm((current) => ({
@@ -96,12 +144,13 @@ export function ProfilePage() {
     setBuyingBundleKey(bundleKey);
 
     try {
-      const response = await buyPromotionBundle(bundleKey);
-      updateUser(response.user);
-      showToast({ message: `Pachetul ${response.bundle.label} a fost adaugat in cont.`, type: "success" });
+      const response = await buyPromotionBundle(bundleKey, `${location.pathname}${location.search}`);
+      if (!response.url) {
+        throw new Error("Backend-ul nu a returnat linkul Stripe Checkout.");
+      }
+      window.location.href = response.url;
     } catch (apiError) {
       showToast({ message: getApiErrorMessage(apiError), type: "error" });
-    } finally {
       setBuyingBundleKey("");
     }
   }
@@ -178,10 +227,10 @@ export function ProfilePage() {
           <div>
             <span>Boost anunturi</span>
             <h2>Pachete promovare</h2>
-            <p>Cumpara credite demo si foloseste-le pentru a afisa anunturile tale in zona promovata.</p>
+            <p>Cumpara credite si foloseste-le pentru a afisa anunturile tale in zona promovata.</p>
           </div>
           <div className="promotion-credit-balance">
-            <BadgeEuro size={22} aria-hidden="true" />
+            <Wallet size={22} aria-hidden="true" />
             <strong>{user?.promotionCredits ?? 0}</strong>
             <span>credite disponibile</span>
           </div>
@@ -202,7 +251,7 @@ export function ProfilePage() {
                 disabled={buyingBundleKey === bundle.key}
               >
                 <CreditCard size={17} aria-hidden="true" />
-                {buyingBundleKey === bundle.key ? "Se proceseaza..." : `${bundle.price} EUR`}
+                {buyingBundleKey === bundle.key ? "Se proceseaza..." : `${bundle.price} RON`}
               </button>
             </article>
           ))}

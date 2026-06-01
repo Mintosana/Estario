@@ -3,10 +3,12 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
+import { stripeWebhookAction } from "./controllers/stripe.controller.js";
 import { errorMiddleware } from "./middleware/error.middleware.js";
 import { multerErrorMiddleware } from "./middleware/multerError.middleware.js";
 import { notFoundMiddleware } from "./middleware/notFound.middleware.js";
 import routes from "./routes/index.js";
+import { asyncHandler } from "./utils/asyncHandler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +27,7 @@ app.use(
     credentials: true
   })
 );
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), asyncHandler(stripeWebhookAction));
 app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 

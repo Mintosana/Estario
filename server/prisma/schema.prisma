@@ -110,8 +110,27 @@ model User {
   ownerConversations Conversation[] @relation("OwnerConversations")
   sentMessages Message[] @relation("SentMessages")
   notifications Notification[]
+  promotionPurchases PromotionPurchase[]
 
   @@map("users")
+}
+
+model PromotionPurchase {
+  id              String    @id @default(cuid())
+  stripeSessionId String    @unique
+  userId          String
+  bundleKey       String
+  credits         Int
+  amount          Int
+  currency        String
+  status          String    @default("PENDING")
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("promotion_purchases")
 }
 
 model Notification {
