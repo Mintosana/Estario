@@ -4,19 +4,29 @@ dotenv.config();
 
 const requiredEnv = ["DATABASE_URL", "JWT_SECRET"];
 
+function parseCsvEnv(value) {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 for (const key of requiredEnv) {
   if (!process.env[key]) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
 }
 
+const clientUrl = process.env.CLIENT_URL ?? "http://localhost:5173";
+
 export const env = {
-  clientUrl: process.env.CLIENT_URL ?? "http://localhost:5173",
+  clientUrl,
   clientUrls: [
-    process.env.CLIENT_URL ?? "http://localhost:5173",
+    clientUrl,
+    ...parseCsvEnv(process.env.CLIENT_URLS),
     "http://127.0.0.1:5173",
     "http://localhost:5173"
-  ],
+  ].filter((url, index, urls) => urls.indexOf(url) === index),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   jwtSecret: process.env.JWT_SECRET,
   googleApiKey: process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY ?? "",

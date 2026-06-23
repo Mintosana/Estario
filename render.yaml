@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: estario-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: stripe-payment-implementation
+    autoDeploy: true
+    buildCommand: cd server && npm ci && npx prisma generate
+    startCommand: cd server && npx prisma migrate deploy && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: estario-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: UPLOAD_DIR
+        value: /opt/render/project/src/server/uploads
+
+databases:
+  - name: estario-postgres
+    databaseName: estario_db
+    user: estario_user
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    ipAllowList: []

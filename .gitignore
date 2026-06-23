@@ -1,5 +1,6 @@
 *.md
 !README.md
+!DEPLOYMENT.md
 
 node_modules/
 dist/
